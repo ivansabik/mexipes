@@ -1,5 +1,6 @@
 import contextlib
 import json
+import logging
 from pathlib import Path
 from typing import TypeVar
 
@@ -9,6 +10,10 @@ from mexipes.schemas.publication import PublicationMetadata
 from mexipes.schemas.recipe import RecipeStatus
 
 T = TypeVar("T", bound=BaseModel)
+
+logger = logging.getLogger(__name__)
+
+_STATUS_INDEX_FILENAME = "_index.json"
 
 
 class RecipeStore:
@@ -85,9 +90,14 @@ class RecipeStore:
         except Exception:
             return None
 
-    def get_status(self, publication_id: int, recipe_id: int) -> RecipeStatus:
-        recipe_dir = self.get_recipe_dir(publication_id, recipe_id)
-        status_file = recipe_dir / "status.json"
+    def _status_index_path(self, publication_id: int) -> Path:
+        return self.get_publication_dir(publication_id) / _STATUS_INDEX_FILENAME
+
+    def _read_status_from_disk(self, publication_id: int, recipe_id: int) -> RecipeStatus:
+        """Read recipe status from status.json without creating directories."""
+        status_file = (
+            self.data_dir / "publications" / str(publication_id) / "recipes" / str(recipe_id) / "status.json"
+        )
         if not status_file.exists():
             return RecipeStatus.EXTRACTED
         try:
@@ -95,6 +105,38 @@ class RecipeStore:
             return RecipeStatus(data["status"])
         except Exception:
             return RecipeStatus.EXTRACTED
+
+    def _save_status_index(self, publication_id: int, index: dict[str, str]) -> None:
+        index_path = self._status_index_path(publication_id)
+        tmp_path = index_path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(index, indent=4, sort_keys=True), encoding="utf-8")
+        tmp_path.replace(index_path)
+
+    def rebuild_status_index(self, publication_id: int) -> dict[str, str]:
+        """Rebuild publication _index.json by scanning recipe status.json files."""
+        index: dict[str, str] = {}
+        recipes_dir = self.get_publication_dir(publication_id) / "recipes"
+        if recipes_dir.exists():
+            for recipe_path in recipes_dir.iterdir():
+                if recipe_path.is_dir() and recipe_path.name.isdigit():
+                    recipe_id = int(recipe_path.name)
+                    index[str(recipe_id)] = self._read_status_from_disk(publication_id, recipe_id).value
+        self._save_status_index(publication_id, index)
+        return index
+
+    def load_status_index(self, publication_id: int) -> dict[str, str]:
+        """Load publication status index, rebuilding from disk when missing or corrupt."""
+        index_path = self._status_index_path(publication_id)
+        if not index_path.exists():
+            return self.rebuild_status_index(publication_id)
+        try:
+            return json.loads(index_path.read_text(encoding="utf-8"))
+        except Exception:
+            logger.warning("Corrupt status index for publication %s; rebuilding", publication_id)
+            return self.rebuild_status_index(publication_id)
+
+    def get_status(self, publication_id: int, recipe_id: int) -> RecipeStatus:
+        return self._read_status_from_disk(publication_id, recipe_id)
 
     def set_status(self, publication_id: int, recipe_id: int, status: RecipeStatus, error: str | None = None) -> None:
         recipe_dir = self.get_recipe_dir(publication_id, recipe_id)
@@ -105,6 +147,10 @@ class RecipeStore:
         }
         status_file.write_text(json.dumps(status_data, indent=4), encoding="utf-8")
 
+        index = self.load_status_index(publication_id)
+        index[str(recipe_id)] = status.value
+        self._save_status_index(publication_id, index)
+
     def find_recipes_at_status(self, status: RecipeStatus) -> list[tuple[int, int]]:
         results = []
         publications_dir = self.data_dir / "publications"
@@ -114,15 +160,15 @@ class RecipeStore:
             if not pub_path.is_dir() or not pub_path.name.isdigit():
                 continue
             publication_id = int(pub_path.name)
-            recipes_dir = pub_path / "recipes"
-            if not recipes_dir.exists():
-                continue
-            for recipe_path in sorted(recipes_dir.iterdir(), key=lambda p: int(p.name) if p.name.isdigit() else 999999):
-                if not recipe_path.is_dir() or not recipe_path.name.isdigit():
+            index = self.load_status_index(publication_id)
+            for recipe_id_str, status_str in index.items():
+                if not recipe_id_str.isdigit():
                     continue
-                recipe_id = int(recipe_path.name)
-                if self.get_status(publication_id, recipe_id) == status:
-                    results.append((publication_id, recipe_id))
+                try:
+                    if RecipeStatus(status_str) == status:
+                        results.append((publication_id, int(recipe_id_str)))
+                except ValueError:
+                    continue
         return results
 
     def find_all_recipes(self) -> list[tuple[int, int]]:

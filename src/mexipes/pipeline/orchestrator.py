@@ -270,7 +270,9 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
             "localized": localized.model_dump() if localized else None,
             "tags": tag_data,
             "tags_en": localized_tags.model_dump() if localized_tags else None,
-            "tags_bilingual": vocab.to_bilingual(tag_data) if tag_data is not None else None,
+            "tags_bilingual": vocab.to_bilingual(tag_data, localized_tags.model_dump() if localized_tags else None)
+            if tag_data is not None
+            else None,
             "substitutions": [sub.model_dump() for sub in substitutions.substitutions] if substitutions else [],
         }
         exported_list.append(recipe_data)

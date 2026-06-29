@@ -605,14 +605,18 @@ def slug_for(field: str, value_es: str | None) -> str | None:
     return es_to_slug(field).get(value_es)
 
 
-def bilingual_entry(field: str, value_es: str | None) -> dict[str, str] | None:
+def bilingual_entry(field: str, value_es: str | None, value_en: str | None = None) -> dict[str, str] | None:
     """Build a ``{slug, es, en}`` dict for a Spanish value (None if empty)."""
     if not value_es:
         return None
+
+    dict_en = es_to_en(field).get(value_es, value_es)
+    final_en = value_en if (dict_en == value_es and value_en is not None) else dict_en
+
     return {
         "slug": es_to_slug(field).get(value_es, _fallback_slug(value_es)),
         "es": value_es,
-        "en": es_to_en(field).get(value_es, value_es),
+        "en": final_en,
     }
 
 
@@ -659,21 +663,28 @@ FACET_FIELDS: tuple[str, ...] = (
 )
 
 
-def to_bilingual(tag_data: dict) -> dict:
+def to_bilingual(tag_data: dict, tag_data_en: dict | None = None) -> dict:
     """Build a ``{slug, es, en}`` export view from a Spanish tag-set ``model_dump``.
 
     List fields become lists of entries; scalar fields become a single entry (or
     ``None``). Non-vocabulary fields pass through.
     """
     out: dict = {}
+    tag_data_en = tag_data_en or {}
     for field, value in tag_data.items():
         if field not in VOCABULARIES:
             out[field] = value
             continue
+        en_value = tag_data_en.get(field)
         if field in SCALAR_FIELDS:
-            out[field] = bilingual_entry(field, value)
+            out[field] = bilingual_entry(field, value, en_value)
         else:
-            out[field] = [bilingual_entry(field, v) for v in (value or []) if v]
+            out[field] = []
+            for i, v in enumerate(value or []):
+                if not v:
+                    continue
+                v_en = en_value[i] if (isinstance(en_value, list) and i < len(en_value)) else None
+                out[field].append(bilingual_entry(field, v, v_en))
     return out
 
 

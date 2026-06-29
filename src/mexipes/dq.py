@@ -291,6 +291,21 @@ def _validate_extracted(
             )
         )
 
+    if recipe.has_multiple_recipes:
+        report.add(
+            DQIssue(
+                publication_id=pub_id,
+                recipe_id=recipe_id,
+                stage=stage,
+                field="has_multiple_recipes",
+                severity="warning",
+                message=(
+                    "Extraction flagged multiple recipes in one record; "
+                    "ingredients/instructions may be tangled and downstream quality may suffer"
+                ),
+            )
+        )
+
     if expect_region and _is_null_like(recipe.region):
         report.add(
             DQIssue(

@@ -1,4 +1,5 @@
 import hashlib
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -418,8 +419,6 @@ def extract_publication_metadata(store: RecipeStore, publication_id: int) -> Pub
     pub_info_path = publication_dir / "publication_info.json"
     if pub_info_path.exists():
         try:
-            import json
-
             info = json.loads(pub_info_path.read_text(encoding="utf-8"))
             info["status"] = "metadata_extracted"
             pub_info_path.write_text(json.dumps(info, indent=4), encoding="utf-8")
@@ -658,8 +657,6 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
         pub_info_path = publication_dir / "publication_info.json"
         if pub_info_path.exists():
             try:
-                import json
-
                 info = json.loads(pub_info_path.read_text(encoding="utf-8"))
                 info["status"] = "recipes_extracted"
                 pub_info_path.write_text(json.dumps(info, indent=4), encoding="utf-8")

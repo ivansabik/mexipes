@@ -49,11 +49,7 @@ def _translate_leftover_tags(leftovers: set[str]) -> dict[str, str]:
 
     prompt_template = load_prompt("localize_tags.md")
     terms = sorted(leftovers)
-    prompt = (
-        f"{prompt_template}\n\n"
-        f"SPANISH TERMS TO TRANSLATE:\n"
-        + "\n".join(f"- {term}" for term in terms)
-    )
+    prompt = f"{prompt_template}\n\nSPANISH TERMS TO TRANSLATE:\n" + "\n".join(f"- {term}" for term in terms)
 
     result = call_llm(
         model=settings.localize.model,
@@ -136,9 +132,7 @@ def localize_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> 
         localized.title_en = normalize_title_en(localized.title_en)
         store.save_stage_output(publication_id, recipe_id, "localized", localized)
     elif existing_localized:
-        logger.info(
-            "No rewritten recipe data; reusing existing localized.json and refreshing localized tags only."
-        )
+        logger.info("No rewritten recipe data; reusing existing localized.json and refreshing localized tags only.")
         localized = existing_localized
     else:
         raise ValueError(f"No rewritten recipe data found for Publication {publication_id}, Recipe {recipe_id}")

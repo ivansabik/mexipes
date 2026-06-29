@@ -125,9 +125,7 @@ def compute_similar(recipes: list[dict], top_n: int = 10) -> dict[str, list[dict
                 scored.append((s, j))
 
         scored.sort(key=lambda t: (-t[0], keys[t[1]]))
-        results[keys[i]] = [
-            {"key": keys[j], "title": titles[j], "score": round(s, 4)} for s, j in scored[:top_n]
-        ]
+        results[keys[i]] = [{"key": keys[j], "title": titles[j], "score": round(s, 4)} for s, j in scored[:top_n]]
 
     return results
 

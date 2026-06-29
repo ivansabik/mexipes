@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 
+from mexipes.region import resolve_region
 from mexipes.schemas import (
     ExtractedRecipe,
     ImageDescriptionsResult,
@@ -11,7 +12,6 @@ from mexipes.schemas import (
     RewrittenRecipe,
     SubstitutionsResult,
 )
-from mexipes.region import resolve_region
 from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.storage import RecipeStore
 
@@ -223,9 +223,7 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
 
         # Merge region: tags, then extraction, then publication metadata.
         metadata = store.load_publication_metadata(publication_id)
-        recipe_region = (tags.region if tags and tags.region else None) or (
-            extracted.region if extracted else None
-        )
+        recipe_region = (tags.region if tags and tags.region else None) or (extracted.region if extracted else None)
         region_es = (
             resolve_region(
                 recipe_region,

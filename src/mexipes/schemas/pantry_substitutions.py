@@ -458,10 +458,7 @@ SPECIALTY_ENTRIES: list[PantryEntry] = [
 
 def _render_entry(entry: PantryEntry) -> str:
     names = ", ".join(f"`{n}`" for n in entry.names)
-    if entry.substitute:
-        sub = entry.substitute
-    else:
-        sub = "*(do not substitute)*"
+    sub = entry.substitute or "*(do not substitute)*"
     return f"- **{names}** ({entry.availability}): {sub}. {entry.notes}"
 
 

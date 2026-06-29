@@ -123,7 +123,7 @@ def strip_generic_recipe_images(store: RecipeStore, publication_id: int) -> int:
 
     Identical image content appearing on multiple recipes in the same
     publication indicates a repeating decorative sidebar, not a recipe photo.
-  """
+    """
     hash_to_locations: dict[str, list[tuple[int, str]]] = {}
 
     for pub_id, recipe_id in store.find_all_recipes():
@@ -135,16 +135,12 @@ def strip_generic_recipe_images(store: RecipeStore, publication_id: int) -> int:
             hash_to_locations.setdefault(digest, []).append((recipe_id, img_path.name))
 
     generic_hashes = {
-        digest
-        for digest, locations in hash_to_locations.items()
-        if len({recipe_id for recipe_id, _ in locations}) >= 2
+        digest for digest, locations in hash_to_locations.items() if len({recipe_id for recipe_id, _ in locations}) >= 2
     }
     if not generic_hashes:
         return 0
 
-    generic_recipe_ids = {
-        recipe_id for digest in generic_hashes for recipe_id, _ in hash_to_locations[digest]
-    }
+    generic_recipe_ids = {recipe_id for digest in generic_hashes for recipe_id, _ in hash_to_locations[digest]}
 
     cleaned = 0
     for recipe_id in sorted(generic_recipe_ids):
@@ -169,9 +165,7 @@ def strip_generic_recipe_images(store: RecipeStore, publication_id: int) -> int:
             )
 
         cleaned += 1
-        logger.info(
-            f"Stripped generic template image from Recipe {recipe_id} in Publication {publication_id}"
-        )
+        logger.info(f"Stripped generic template image from Recipe {recipe_id} in Publication {publication_id}")
 
     return cleaned
 
@@ -306,9 +300,7 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
             recipe.instructions = instructions
 
             if is_non_recipe_extraction(recipe.ingredients, recipe.instructions):
-                logger.info(
-                    f"Skipping non-recipe extraction (section header or modality label): '{recipe.title}'"
-                )
+                logger.info(f"Skipping non-recipe extraction (section header or modality label): '{recipe.title}'")
                 continue
 
             if is_empty_recipe_extraction(recipe.ingredients, recipe.instructions):
@@ -393,9 +385,7 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
 
     stripped = strip_generic_recipe_images(store, publication_id)
     if stripped:
-        logger.info(
-            f"Removed generic template images from {stripped} recipe(s) in Publication {publication_id}"
-        )
+        logger.info(f"Removed generic template images from {stripped} recipe(s) in Publication {publication_id}")
 
     # Update publication status to recipes extracted only if no errors occurred
     if not has_errors:

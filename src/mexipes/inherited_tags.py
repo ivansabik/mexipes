@@ -29,9 +29,7 @@ _REMAINDER_TRIM = re.compile(r"[.;]|(?:\s|^)vol(?:\.|\s|\d)|(?:\s|^)m[eé]xico(?
 def _normalize_for_match(text: str) -> str:
     """Lowercase and strip accents for fuzzy title matching."""
     lowered = text.lower()
-    return "".join(
-        c for c in unicodedata.normalize("NFD", lowered) if unicodedata.category(c) != "Mn"
-    )
+    return "".join(c for c in unicodedata.normalize("NFD", lowered) if unicodedata.category(c) != "Mn")
 
 
 def _known_region_names() -> list[str]:
@@ -113,9 +111,7 @@ def sanitize_inherited_tags(metadata: PublicationMetadata) -> InheritedTags:
         if inherited.region:
             inherited.region = None
         if _TRADICIONAL_REGIONAL in inherited.cuisine_style:
-            inherited.cuisine_style = [
-                style for style in inherited.cuisine_style if style != _TRADICIONAL_REGIONAL
-            ]
+            inherited.cuisine_style = [style for style in inherited.cuisine_style if style != _TRADICIONAL_REGIONAL]
     else:
         if not inherited.region:
             inherited.region = infer_region_from_title(metadata.document_title)

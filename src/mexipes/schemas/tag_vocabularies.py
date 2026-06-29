@@ -470,9 +470,7 @@ SCALAR_FIELDS: frozenset[str] = frozenset(
 )
 
 # Fields that are open-ended: validate as warnings, allow unknown values.
-OPEN_FIELDS: frozenset[str] = frozenset(
-    {"region", "chile_type", "key_ingredient", "cooking_equipment"}
-)
+OPEN_FIELDS: frozenset[str] = frozenset({"region", "chile_type", "key_ingredient", "cooking_equipment"})
 
 
 def es_values(field: str) -> set[str]:
@@ -742,13 +740,25 @@ def format_inherited_tags_prompt_section() -> str:
 
     render("course", "tipo de plato")
     render("meal_type", "momento de la comida")
-    render("region", "región mexicana", "Solo si TODAS las recetas son de esa región y el título/subtítulo lo afirma. NO uses autor, editor ni institución publicadora.")
-    render("protein", "proteínas", "p. ej. `Pollo`, `Ninguno` para vegano/vegetariano. Cualquier pez de aleta (atún, salmón, etc.) es `Pescado`.")
+    render(
+        "region",
+        "región mexicana",
+        "Solo si TODAS las recetas son de esa región y el título/subtítulo lo afirma. NO uses autor, editor ni institución publicadora.",
+    )
+    render(
+        "protein",
+        "proteínas",
+        "p. ej. `Pollo`, `Ninguno` para vegano/vegetariano. Cualquier pez de aleta (atún, salmón, etc.) es `Pescado`.",
+    )
     render("spiciness", "picor", "Elige EXACTAMENTE una si aplica a todo el libro.")
     render("dietary", "dietético", "Si es vegano: `Vegano`, `Vegetariano`, `Sin Lácteos`.")
     render("cooking_method", "método de cocción")
     render("chile_type", "chiles")
-    render("cuisine_style", "estilo de cocina", "`Tradicional Regional` solo si el libro afirma explícitamente cocina regional/tradicional; no por nombre de estado en la editorial.")
+    render(
+        "cuisine_style",
+        "estilo de cocina",
+        "`Tradicional Regional` solo si el libro afirma explícitamente cocina regional/tradicional; no por nombre de estado en la editorial.",
+    )
     render("difficulty", "dificultad", "Elige EXACTAMENTE una si aplica globalmente.")
     render("total_time", "tiempo total", "Elige EXACTAMENTE una si aplica globalmente.")
     render("season", "temporada o evento", "p. ej. bolis/paletas/nieves → `Verano`; no uses `Todo el Año` por defecto.")

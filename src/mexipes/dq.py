@@ -346,8 +346,7 @@ def _validate_extracted(
                 field="images_count",
                 severity="warning",
                 message=(
-                    f"images_count ({recipe.images_count}) does not match "
-                    f"len(image_crops) ({len(recipe.image_crops)})"
+                    f"images_count ({recipe.images_count}) does not match len(image_crops) ({len(recipe.image_crops)})"
                 ),
             )
         )
@@ -443,7 +442,9 @@ def _validate_tag_set(
 
     # List fields with controlled vocab
     for field_name in _CHECKED_LIST_FIELDS:
-        _check_list_vocab(report, pub_id, recipe_id, stage, field_name, getattr(tags, field_name), values_fn(field_name))
+        _check_list_vocab(
+            report, pub_id, recipe_id, stage, field_name, getattr(tags, field_name), values_fn(field_name)
+        )
 
     # Coverage warnings
     if not tags.course:
@@ -467,7 +468,7 @@ def _validate_tag_set(
                 severity="warning",
                 message="No dish_format or preparation_style assigned",
             )
-            )
+        )
 
     # health_nutrition validated via _CHECKED_LIST_FIELDS with lang-aware values_fn
 

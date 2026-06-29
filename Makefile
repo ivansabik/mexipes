@@ -1,10 +1,12 @@
-.PHONY: help setup format lint clean
+.PHONY: help setup format lint test check clean
 
 help:
 	@echo "Available commands:"
 	@echo "  setup   - Install dependencies and create .env file"
 	@echo "  format  - Format Python source code using ruff"
 	@echo "  lint    - Run ruff linter and fix fixable errors"
+	@echo "  test    - Run the test suite"
+	@echo "  check   - Run CI checks (lint + format, no auto-fix)"
 	@echo "  clean   - Remove temporary cache and directory files"
 
 setup:
@@ -17,10 +19,17 @@ setup:
 	fi
 
 format:
-	ruff format src/
+	ruff format src/ tests/
 
 lint:
-	ruff check src/ --fix
+	ruff check src/ tests/ --fix
+
+test:
+	pytest tests/
+
+check:
+	ruff check src/ tests/
+	ruff format --check src/ tests/
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

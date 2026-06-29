@@ -52,9 +52,7 @@ def get_page_text_rects(pdf_path: Path, page_index: int) -> list[tuple[int, int,
         return rects
 
 
-def render_image_crop_bytes(
-    pdf_path: Path, page_index: int, box_2d: list[int], dpi: int = 300
-) -> bytes:
+def render_image_crop_bytes(pdf_path: Path, page_index: int, box_2d: list[int], dpi: int = 300) -> bytes:
     """Render a normalized [0-1000] crop from a PDF page and return PNG bytes.
 
     box_2d is [ymin, xmin, ymax, xmax].

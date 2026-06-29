@@ -74,9 +74,7 @@ def test_protein_list_dedupes_after_alias():
 
 
 def test_inherited_protein_species_coerced_and_deduped():
-    inherited = vocab.normalize_inherited_tags_data(
-        {"protein": ["Atún", "Pescado"], "primary_protein": "Salmón"}
-    )
+    inherited = vocab.normalize_inherited_tags_data({"protein": ["Atún", "Pescado"], "primary_protein": "Salmón"})
     assert inherited["protein"] == ["Pescado"]
     assert inherited["primary_protein"] == "Pescado"
 

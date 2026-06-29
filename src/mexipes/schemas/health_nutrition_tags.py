@@ -152,9 +152,7 @@ HEALTH_NUTRITION_CATEGORIES: dict[str, list[HealthNutritionTerm]] = {
 }
 
 # Flat list for vocabulary registry and lookups.
-HEALTH_NUTRITION: list[HealthNutritionTerm] = [
-    term for terms in HEALTH_NUTRITION_CATEGORIES.values() for term in terms
-]
+HEALTH_NUTRITION: list[HealthNutritionTerm] = [term for terms in HEALTH_NUTRITION_CATEGORIES.values() for term in terms]
 
 VALID_HEALTH_NUTRITION_ES: set[str] = {es for _, es, _ in HEALTH_NUTRITION}
 VALID_HEALTH_NUTRITION_EN: set[str] = {en for _, _, en in HEALTH_NUTRITION}

@@ -24,9 +24,7 @@ SECTION_HEADER_LINE_PATTERN = re.compile(
     r"(?i)^\s*(INGREDIENTES?|PREPARACI[ÓO]N|PROCEDIMIENTO|ELABORACI[ÓO]N|MODO DE PREPARAR)\s*:?\s*\n?"
 )
 
-SECTION_HEADER_INLINE_PATTERN = re.compile(
-    r"(?i)\b(INGREDIENTES?|PREPARACI[ÓO]N|PROCEDIMIENTO|ELABORACI[ÓO]N)\s*:"
-)
+SECTION_HEADER_INLINE_PATTERN = re.compile(r"(?i)\b(INGREDIENTES?|PREPARACI[ÓO]N|PROCEDIMIENTO|ELABORACI[ÓO]N)\s*:")
 
 SPANISH_TITLE_STOPWORDS = frozenset(
     {"de", "del", "la", "el", "los", "las", "con", "y", "e", "en", "a", "al", "para", "por", "o", "u"}

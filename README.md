@@ -1,5 +1,8 @@
 # Mexipes content pipeline
 
+[![Tests](https://github.com/ivansabik/mexipes/actions/workflows/ci.yml/badge.svg)](https://github.com/ivansabik/mexipes/actions/workflows/ci.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 Automated pipeline for converting recipe publication PDFs from Spanish into structured, localized English recipes.
 
 ## Features

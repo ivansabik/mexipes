@@ -87,8 +87,6 @@ def test_strip_generic_recipe_images_clears_images_described(tmp_path: Path) -> 
     strip_generic_recipe_images(store, publication_id)
 
     for recipe_id in (1, 2):
-        described = store.load_stage_output(
-            publication_id, recipe_id, "images_described", ImageDescriptionsResult
-        )
+        described = store.load_stage_output(publication_id, recipe_id, "images_described", ImageDescriptionsResult)
         assert described is not None
         assert described.descriptions == []

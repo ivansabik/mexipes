@@ -111,4 +111,3 @@ def test_normalize_extracted_recipe_fields():
     assert title == "Mole de Olla"
     assert ingredients == "1/2 kilo de carne"
     assert instructions == "Cocer la carne."
-

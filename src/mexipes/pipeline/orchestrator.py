@@ -209,8 +209,11 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
     exported_list = []
     # facets: field -> slug -> list of "pub:recipe" keys
     facets: dict[str, dict[str, list[str]]] = {}
+    publications_index: dict[str, dict] = {}
 
     for publication_id, recipe_id in recipes_keys:
+        if str(publication_id) not in publications_index:
+            publications_index[str(publication_id)] = store.publication_export_info(publication_id)
         extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
         rewritten = store.load_stage_output(publication_id, recipe_id, "rewritten", RewrittenRecipe)
         images = store.load_stage_output(publication_id, recipe_id, "images_described", ImageDescriptionsResult)
@@ -249,6 +252,7 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
         recipe_data = {
             "publication_id": publication_id,
             "recipe_id": recipe_id,
+            "publication": publications_index[str(publication_id)],
             "title": localized.title_en
             if localized
             else (rewritten.title if rewritten else (extracted.title if extracted else f"Recipe {recipe_id}")),
@@ -275,5 +279,9 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
     logger.info(f"Consolidated export written to {output_path}")
 
     facets_path = output_path.with_name(f"{output_path.stem}_facets.json")
-    facets_path.write_text(json.dumps(facets, indent=4, ensure_ascii=False), encoding="utf-8")
+    facets_payload = {
+        "publications": publications_index,
+        "facets": facets,
+    }
+    facets_path.write_text(json.dumps(facets_payload, indent=4, ensure_ascii=False), encoding="utf-8")
     logger.info(f"Facet index written to {facets_path}")

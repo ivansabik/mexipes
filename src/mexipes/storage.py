@@ -47,6 +47,29 @@ class RecipeStore:
             return None
         return PublicationMetadata.model_validate_json(file_path.read_text(encoding="utf-8"))
 
+    def load_publication_info(self, publication_id: int) -> dict | None:
+        """Load ingest-time ``publication_info.json`` (original filename, md5, etc.)."""
+        file_path = self.get_publication_dir(publication_id) / "publication_info.json"
+        if not file_path.exists():
+            return None
+        try:
+            return json.loads(file_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def publication_export_info(self, publication_id: int) -> dict:
+        """Summary for consolidated export: source file path and document title."""
+        info = self.load_publication_info(publication_id)
+        metadata = self.load_publication_metadata(publication_id)
+        original_filename = info.get("original_filename") if info else None
+        rel_path = f"publications/{publication_id}/source.pdf"
+        return {
+            "id": publication_id,
+            "file": original_filename or rel_path,
+            "source_pdf": rel_path,
+            "title": metadata.document_title if metadata else None,
+        }
+
     def save_stage_output(self, publication_id: int, recipe_id: int, stage_name: str, data: BaseModel) -> None:
         recipe_dir = self.get_recipe_dir(publication_id, recipe_id)
         file_path = recipe_dir / f"{stage_name}.json"

@@ -176,6 +176,11 @@ def format_health_nutrition_prompt_section() -> str:
         "    `Sin Gluten`, etc.); `health_nutrition` cubre perfil nutricional y atributos de salud.",
         "    No dupliques etiquetas dietéticas con guión (`Bajo en Carbohidratos`, `Alto en Proteína`) aquí —",
         "    usa las etiquetas de perfil nutricional del vocabulario abajo cuando aplique.",
+        "    **Condimentos y salsas** (`dish_format`: `Salsa`, `Guacamole`, `Adobo`, `Mole`, `Pipián`): deja",
+        "    `health_nutrition` **vacío**. No infieras `Sin Colesterol`, `Sin Azúcar Añadida`, `Bajo en Calorías`,",
+        "    `Ingredientes Frescos`, `Mínimamente Procesado`, `Denso en Nutrientes` ni `Botana Saludable` — son",
+        "    ciertos por defecto o aplican al plato completo, no a una salsa. Reserva este campo para platos",
+        "    compuestos donde el perfil nutricional sea un hallazgo real.",
         "",
         "    **Vocabulario por categoría:**",
     ]

@@ -19,6 +19,7 @@ Eres un experto en gastronomía, cultura y artes culinarias mexicanas. Tu tarea 
 - NO etiquetes `Salsa` cuando la salsa es solo un componente del plato (p. ej. "Pollo en salsa de cacahuate" NO es `Salsa`).
 - Si el título está encabezado por la proteína o la técnica ("Pollo en…", "Pescado a la…", "Lentejas guisadas"), asigna `preparation_style` (p. ej. `En Salsa`, `Guisado` no existe aquí—usa `cooking_method` para técnicas) y `primary_protein`, y asigna `dish_format` solo si corresponde un formato real.
 - `preparation_style` describe CÓMO se construye/salsea el plato; NO dupliques las técnicas de `cooking_method`.
+- **Condimentos y salsas** (`dish_format`: `Salsa`, `Guacamole`, `Adobo`, `Mole`, `Pipián`): usa `course: Guarnición` y `meal_type: Botana` cuando se sirve como botana o dip. No combines `Guarnición` y `Entrada`. No uses `Entrada` salvo que la receta sea claramente un platillo compuesto de entrada, no un condimento de mesa.
 
 ## Reglas para `primary_protein`:
 - Elige EXACTAMENTE una proteína: la más prominente del plato.
@@ -50,3 +51,8 @@ Eres un experto en gastronomía, cultura y artes culinarias mexicanas. Tu tarea 
     *   Puede contener lácteos (queso, mantequilla, leche, crema) o huevos.
     *   Si contiene queso/huevos pero no carne/mariscos, etiqueta `Vegetariano`, pero **no** `Vegano` ni `Sin Lácteos`.
     *   Si el título de la publicación contiene "Vegetarian"/"Vegetariano" (y no "Vegano"), etiqueta por defecto como `Vegetariano` (solo `Vegano` si la receta no contiene lácteos/huevos/miel).
+
+## Condimentos y salsas (`dietary` y `health_nutrition`):
+- Para recetas con `dish_format` de salsa/condimento (`Salsa`, `Guacamole`, `Adobo`, `Mole`, `Pipián`), deja **`dietary` vacío** salvo herencia de publicación vegano/vegetariano.
+- No etiquetes `Vegetariano`, `Vegano`, `Sin Lácteos` ni `Sin Gluten` solo porque los ingredientes son vegetales — eso no aporta valor de búsqueda (como decir "leche sin gluten"). Usa `allergens` si hay lácteos, huevo, etc.
+- Para las mismas recetas, deja **`health_nutrition` vacío**. No infieras `Sin Colesterol`, `Sin Azúcar Añadida`, `Bajo en Calorías`, `Ingredientes Frescos`, `Mínimamente Procesado`, `Denso en Nutrientes` ni `Botana Saludable` — son ciertos por defecto o aplican al plato completo, no a una salsa. Reserva `health_nutrition` para platos compuestos donde el perfil nutricional sea un hallazgo real.

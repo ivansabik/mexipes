@@ -12,7 +12,6 @@ def _minimal_tag_data(**overrides) -> dict:
         "primary_protein": "Pollo",
         "spiciness": "Medio",
         "difficulty": "Fácil",
-        "total_time": "30-60 min",
         "budget": "Económico",
     }
     data.update(overrides)

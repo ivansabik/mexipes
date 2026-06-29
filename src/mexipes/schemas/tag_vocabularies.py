@@ -85,7 +85,7 @@ PROTEIN_ALIASES: dict[str, str] = {
 # rather than kept and leaking untranslated. Required scalars like
 # ``primary_protein`` are coerced via aliases instead.
 OPTIONAL_CLOSED_SCALAR_FIELDS: frozenset[str] = frozenset(
-    {"spiciness", "difficulty", "total_time", "active_time", "budget", "serving_size", "kid_friendly"}
+    {"spiciness", "difficulty", "budget", "serving_size", "kid_friendly"}
 )
 
 SPICINESS: list[TagTerm] = [
@@ -147,20 +147,6 @@ DIFFICULTY: list[TagTerm] = [
     ("easy", "Fácil", "Easy"),
     ("intermediate", "Intermedio", "Intermediate"),
     ("advanced", "Avanzado", "Advanced"),
-]
-
-TOTAL_TIME: list[TagTerm] = [
-    ("under-30-min", "Menos de 30 min", "Under 30 min"),
-    ("30-60-min", "30-60 min", "30-60 min"),
-    ("1-2-hours", "1-2 horas", "1-2 hours"),
-    ("2-plus-hours", "2+ horas", "2+ hours"),
-]
-
-ACTIVE_TIME: list[TagTerm] = [
-    ("active-under-15-min", "Menos de 15 min", "Under 15 min"),
-    ("active-15-30-min", "15-30 min", "15-30 min"),
-    ("active-30-60-min", "30-60 min", "30-60 min"),
-    ("active-1-plus-hours", "1+ horas", "1+ hours"),
 ]
 
 SEASON: list[TagTerm] = [
@@ -444,8 +430,6 @@ VOCABULARIES: dict[str, list[TagTerm]] = {
     "chile_type": CHILE_TYPE,
     "cuisine_style": CUISINE_STYLE,
     "difficulty": DIFFICULTY,
-    "total_time": TOTAL_TIME,
-    "active_time": ACTIVE_TIME,
     "season": SEASON,
     "key_ingredient": KEY_INGREDIENT,
     "budget": BUDGET,
@@ -470,8 +454,6 @@ SCALAR_FIELDS: frozenset[str] = frozenset(
         "primary_protein",
         "spiciness",
         "difficulty",
-        "total_time",
-        "active_time",
         "budget",
         "serving_size",
         "kid_friendly",
@@ -646,7 +628,6 @@ FACET_FIELDS: tuple[str, ...] = (
     "chile_type",
     "cuisine_style",
     "difficulty",
-    "total_time",
     "season",
     "key_ingredient",
     "budget",
@@ -823,42 +804,40 @@ def format_tag_taxonomy_prompt_section() -> str:
     render(9, "chile_type", "chiles utilizados")
     render(10, "cuisine_style", "estilo de cocina")
     render(11, "difficulty", "dificultad", "Elige EXACTAMENTE una.")
-    render(12, "total_time", "tiempo total", "Elige EXACTAMENTE una.")
-    render(13, "active_time", "tiempo activo (manos a la obra)", "Elige EXACTAMENTE una si es posible.")
-    render(14, "season", "temporada o evento")
-    render(15, "key_ingredient", "ingredientes clave definitorios")
-    render(16, "budget", "categoría de costo", "Elige EXACTAMENTE una.")
-    render(17, "cooking_equipment", "equipo esencial")
+    render(12, "season", "temporada o evento")
+    render(13, "key_ingredient", "ingredientes clave definitorios")
+    render(14, "budget", "categoría de costo", "Elige EXACTAMENTE una.")
+    render(15, "cooking_equipment", "equipo esencial")
     render(
-        18,
+        16,
         "dish_format",
         "formato del platillo",
         "Máximo 2. Úsalo SOLO cuando aplica un formato reconocible. No uses `Salsa` cuando la salsa es un componente (p. ej. 'Pollo en salsa de...').",
     )
     render(
-        19,
+        17,
         "preparation_style",
         "estilo de preparación",
         "Máximo 2. Úsalo para platos sin formato claro (p. ej. 'Pescado en salsa' -> `En Salsa`). No dupliques `cooking_method`.",
     )
-    render(20, "flavor_profile", "perfil de sabor", "Elige 2-5.")
-    render(21, "texture", "textura", "Elige 1-3.")
+    render(18, "flavor_profile", "perfil de sabor", "Elige 2-5.")
+    render(19, "texture", "textura", "Elige 1-3.")
     render(
-        22,
+        20,
         "occasion",
         "ocasión",
-        "0-3. Infiere de la dificultad, el tiempo y el estilo (rara vez aparece en el texto).",
+        "0-3. Infiere de la dificultad, el tiempo total (ver CONTEXTO) y el estilo (rara vez aparece en el texto).",
     )
     render(
-        23,
+        21,
         "pairs_well_with",
         "acompañamientos",
         "0-4. Extrae de frases como 'se sirve con...' en las instrucciones.",
     )
-    render(24, "serving_size", "tamaño de porción", "Deriva del rendimiento si es numérico.")
-    render(25, "allergens", "alérgenos", "Incluye solo alérgenos claramente presentes; usa `Ninguno` si no hay.")
-    render(26, "make_ahead", "preparación anticipada")
-    render(27, "kid_friendly", "apto para niños", "Elige EXACTAMENTE una si aplica.")
+    render(22, "serving_size", "tamaño de porción", "Deriva del rendimiento si es numérico.")
+    render(23, "allergens", "alérgenos", "Incluye solo alérgenos claramente presentes; usa `Ninguno` si no hay.")
+    render(24, "make_ahead", "preparación anticipada")
+    render(25, "kid_friendly", "apto para niños", "Elige EXACTAMENTE una si aplica.")
 
     lines.append("")
     lines.append("Además: **contains_alcohol** (booleano) — `true` si la receta contiene alcohol.")

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from mexipes.inherited_tags import region_claim_supported
 from mexipes.recipe_validation import is_non_recipe_extraction
 from mexipes.schemas import tag_vocabularies as vocab
+from mexipes.schemas import recipe_time
 from mexipes.schemas.health_nutrition_tags import VALID_HEALTH_NUTRITION_ES
 from mexipes.schemas.publication import PublicationMetadata
 from mexipes.schemas.recipe import (
@@ -36,7 +37,8 @@ STAGE_MODELS: dict[str, type] = {
 # Spanish canonical sets (tags stage) and English canonical sets (localized_tags).
 VALID_SPICINESS = vocab.es_values("spiciness")
 VALID_DIFFICULTY = vocab.es_values("difficulty")
-VALID_TOTAL_TIME = vocab.es_values("total_time")
+VALID_TOTAL_TIME_ES = recipe_time.es_values()
+VALID_TOTAL_TIME_EN = recipe_time.en_values()
 VALID_BUDGET = vocab.es_values("budget")
 VALID_CANONICAL_REGIONS = vocab.es_values("region")
 
@@ -351,6 +353,18 @@ def _validate_extracted(
             )
         )
 
+    if recipe.total_time and recipe.total_time not in VALID_TOTAL_TIME_ES:
+        report.add(
+            DQIssue(
+                publication_id=pub_id,
+                recipe_id=recipe_id,
+                stage=stage,
+                field="total_time",
+                severity="warning",
+                message=f"Non-canonical total_time value '{recipe.total_time}'",
+            )
+        )
+
 
 def _validate_rewritten(report: DQReport, pub_id: int, recipe_id: int, recipe: RewrittenRecipe) -> None:
     stage = "rewritten"
@@ -358,6 +372,29 @@ def _validate_rewritten(report: DQReport, pub_id: int, recipe_id: int, recipe: R
     _check_not_null(report, pub_id, recipe_id, stage, "ingredients", recipe.ingredients)
     _check_not_null(report, pub_id, recipe_id, stage, "instructions", recipe.instructions)
     _check_min_length(report, pub_id, recipe_id, stage, "instructions", recipe.instructions, 30)
+
+    if not recipe.total_time:
+        report.add(
+            DQIssue(
+                publication_id=pub_id,
+                recipe_id=recipe_id,
+                stage=stage,
+                field="total_time",
+                severity="warning",
+                message="total_time not set (run rewrite or tag stage to infer)",
+            )
+        )
+    elif recipe.total_time not in VALID_TOTAL_TIME_ES:
+        report.add(
+            DQIssue(
+                publication_id=pub_id,
+                recipe_id=recipe_id,
+                stage=stage,
+                field="total_time",
+                severity="warning",
+                message=f"Non-canonical total_time value '{recipe.total_time}'",
+            )
+        )
 
 
 def _validate_localized(report: DQReport, pub_id: int, recipe_id: int, recipe: LocalizedRecipe) -> None:
@@ -377,6 +414,18 @@ def _validate_localized(report: DQReport, pub_id: int, recipe_id: int, recipe: L
                 field="slug",
                 severity="error",
                 message=f"Slug contains spaces: '{recipe.slug}'",
+            )
+        )
+
+    if recipe.total_time_en and recipe.total_time_en not in VALID_TOTAL_TIME_EN:
+        report.add(
+            DQIssue(
+                publication_id=pub_id,
+                recipe_id=recipe_id,
+                stage=stage,
+                field="total_time_en",
+                severity="warning",
+                message=f"Non-canonical total_time_en value '{recipe.total_time_en}'",
             )
         )
 
@@ -419,14 +468,13 @@ def _validate_tag_set(
     # Required scalars
     _check_enum_value(report, pub_id, recipe_id, stage, "spiciness", tags.spiciness, values_fn("spiciness"))
     _check_enum_value(report, pub_id, recipe_id, stage, "difficulty", tags.difficulty, values_fn("difficulty"))
-    _check_enum_value(report, pub_id, recipe_id, stage, "total_time", tags.total_time, values_fn("total_time"))
     _check_enum_value(report, pub_id, recipe_id, stage, "budget", tags.budget, values_fn("budget"))
     _check_enum_value(
         report, pub_id, recipe_id, stage, "primary_protein", tags.primary_protein, values_fn("primary_protein")
     )
 
     # Optional scalars (warn if set to an unknown value)
-    for field_name in ("active_time", "serving_size", "kid_friendly"):
+    for field_name in ("serving_size", "kid_friendly"):
         value = getattr(tags, field_name)
         if value and value not in values_fn(field_name):
             report.add(

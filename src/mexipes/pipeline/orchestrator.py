@@ -13,6 +13,7 @@ from mexipes.schemas import (
     SubstitutionsResult,
 )
 from mexipes.schemas import tag_vocabularies as vocab
+from mexipes.schemas import recipe_time
 from mexipes.storage import RecipeStore
 
 logger = logging.getLogger(__name__)
@@ -241,7 +242,13 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
         if tag_data is not None and region_es:
             tag_data["region"] = region_es
 
-        # Accumulate facet index from slugs.
+        # Recipe-level total_time facets (no longer a tag field).
+        if rewritten and rewritten.total_time:
+            slug = recipe_time.slug_for(rewritten.total_time)
+            if slug:
+                facets.setdefault("total_time", {}).setdefault(slug, []).append(recipe_key)
+
+        # Accumulate facet index from tag slugs.
         if tag_data is not None:
             for field, slugs in vocab.slug_map_for(tag_data).items():
                 field_index = facets.setdefault(field, {})
@@ -257,9 +264,16 @@ def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path:
             if localized
             else (rewritten.title if rewritten else (extracted.title if extracted else f"Recipe {recipe_id}")),
             "region": region_es,
+            "total_time": rewritten.total_time if rewritten else (extracted.total_time if extracted else None),
+            "total_time_en": localized.total_time_en if localized else None,
+            "total_time_bilingual": recipe_time.bilingual_entry(
+                rewritten.total_time if rewritten else extracted.total_time if extracted else None,
+                localized.total_time_en if localized else None,
+            ),
             "original": {
                 "title": extracted.title if extracted else None,
                 "yields": extracted.yields if extracted else None,
+                "total_time": extracted.total_time if extracted else None,
                 "ingredients": extracted.ingredients if extracted else None,
                 "instructions": extracted.instructions if extracted else None,
             }

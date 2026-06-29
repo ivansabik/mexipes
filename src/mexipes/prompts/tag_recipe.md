@@ -35,7 +35,7 @@ Eres un experto en gastronomía, cultura y artes culinarias mexicanas. Tu tarea 
 - `occasion` = contexto de consumo (`Entre Semana`, `Comida Callejera`, `Festividad`, etc.); NO uses aquí valores de `course` ni de `meal_type`.
 
 ## Reglas para `occasion`:
-- Rara vez aparece en el texto: INFIÉRELA de la dificultad, el tiempo total y el estilo de cocina. Ej.: Avanzado + 2+ horas → `Proyecto de Fin de Semana`; estilo Comida Callejera + Tacos → `Comida Callejera`.
+- Rara vez aparece en el texto: INFIÉRELA de la dificultad, el tiempo total (proporcionado en CONTEXTO) y el estilo de cocina. Ej.: Avanzado + 2+ horas → `Proyecto de Fin de Semana`; estilo Comida Callejera + Tacos → `Comida Callejera`.
 
 ## Reglas para `pairs_well_with`:
 - Extrae acompañamientos de frases como "se sirve con…", "acompañar con…" en las instrucciones.

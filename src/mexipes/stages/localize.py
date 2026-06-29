@@ -3,6 +3,7 @@ import logging
 from mexipes.config import settings
 from mexipes.llm import call_llm, load_prompt
 from mexipes.schemas import LocalizedRecipe, RecipeStatus, RecipeTagSet, RewrittenRecipe
+from mexipes.schemas import recipe_time
 from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.schemas.tags import TagTranslations
 from mexipes.storage import RecipeStore
@@ -117,6 +118,7 @@ def localize_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> 
             f"RECIPE TO LOCALIZE:\n"
             f"Title: {rewritten.title}\n"
             f"Yields: {rewritten.yields or 'null'}\n"
+            f"Total time: {rewritten.total_time or 'null'}\n"
             f"Ingredients:\n{rewritten.ingredients}\n"
             f"Instructions:\n{rewritten.instructions}\n"
         )
@@ -130,6 +132,7 @@ def localize_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> 
         )
 
         localized.title_en = normalize_title_en(localized.title_en)
+        localized.total_time_en = recipe_time.es_to_en(rewritten.total_time)
         store.save_stage_output(publication_id, recipe_id, "localized", localized)
     elif existing_localized:
         logger.info("No rewritten recipe data; reusing existing localized.json and refreshing localized tags only.")

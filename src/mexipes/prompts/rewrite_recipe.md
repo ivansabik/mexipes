@@ -14,11 +14,13 @@ In recipe copyright law:
 2. **Instructions**: Produce a plain, neutral, faithful close-paraphrase whose only purpose is to avoid copying the source's exact wording. Keep the same steps, the same order, the same techniques, and the same level of detail. Do NOT add tips, sensory descriptions, encouragement, editorial asides, or any invented detail. Do NOT omit any step or detail. If a step is purely functional and has no real alternative phrasing, you may keep it nearly as-is.
 3. **No introduction**: Do not write an intro, headnote, summary, or any descriptive prose about the dish.
 4. **No invention**: Never add information that is not present in the source.
-5. **Language**: The output must stay in the same language as the source recipe (Spanish) — title, yields, ingredients, and instructions. Do not translate, transliterate, or switch languages for any field or any part of a field, even partially.
+5. **Language**: The output must stay in the same language as the source recipe (Spanish) — title, yields, total_time, ingredients, and instructions. Do not translate, transliterate, or switch languages for any field or any part of a field, even partially.
+6. **`total_time`**: Reproduce the source `total_time` value exactly as provided. Do not infer or change it.
 
 ## Source Recipe Details:
 Title: {title}
 Yields: {yields}
+Total time: {total_time}
 Ingredients (original):
 {ingredients}
 

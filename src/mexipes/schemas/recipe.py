@@ -36,6 +36,13 @@ class ExtractedRecipe(BaseModel):
     title: str = Field(..., description="Original Spanish recipe title")
     region: str | None = Field(None, description="Inferred region of the recipe")
     yields: str | None = Field(None, description="Serving yield information in Spanish")
+    total_time: str | None = Field(
+        None,
+        description=(
+            "Total elapsed time bucket in Spanish "
+            "(Menos de 30 min, 30-60 min, 1-2 horas, 2+ horas, Desconocido, N/A)"
+        ),
+    )
     ingredients: str = Field(..., description="List of ingredients in Spanish")
     instructions: str = Field(..., description="Preparation steps in Spanish")
     page_start: int | None = None
@@ -50,6 +57,10 @@ class RewrittenRecipe(BaseModel):
 
     title: str = Field(..., description="Original Spanish recipe title")
     yields: str | None = Field(None, description="Yield information in Spanish")
+    total_time: str | None = Field(
+        None,
+        description="Total elapsed time bucket in Spanish (see ExtractedRecipe.total_time)",
+    )
     ingredients: str = Field(..., description="Ingredients reproduced verbatim from the source")
     instructions: str = Field(..., description="Neutral close-paraphrase of instructions in Spanish")
 
@@ -69,6 +80,7 @@ class LocalizedRecipe(BaseModel):
     title_en: str = Field(..., description="English translated title")
     slug: str = Field(..., description="URL-friendly slug (e.g. mole-negro-oaxaqueno)")
     yields_en: str | None = Field(None, description="Serving yield in English")
+    total_time_en: str | None = Field(None, description="Total time bucket in English")
     ingredients_en: str = Field(..., description="Ingredients translated to English")
     instructions_en: str = Field(..., description="Instructions translated to English")
 

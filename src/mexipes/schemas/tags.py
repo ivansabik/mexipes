@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 # Current tag taxonomy schema version. Bump when the controlled vocabulary or
 # field set changes so previously tagged recipes can be re-tagged.
-TAG_SCHEMA_VERSION = 1
+TAG_SCHEMA_VERSION = 2
 
 
 class TagTranslation(BaseModel):
@@ -78,14 +78,6 @@ class RecipeTagSet(BaseModel):
     difficulty: str = Field(
         ...,
         description="Dificultad (uno de: Fácil, Intermedio, Avanzado)",
-    )
-    total_time: str = Field(
-        ...,
-        description="Tiempo total (uno de: Menos de 30 min, 30-60 min, 1-2 horas, 2+ horas)",
-    )
-    active_time: str | None = Field(
-        None,
-        description="Tiempo activo / manos a la obra (Menos de 15 min, 15-30 min, 30-60 min, 1+ horas)",
     )
     season: list[str] = Field(
         default_factory=list,

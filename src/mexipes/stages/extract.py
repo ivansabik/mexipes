@@ -26,6 +26,7 @@ from mexipes.schemas import (
     RecipeStatus,
 )
 from mexipes.schemas import tag_vocabularies as vocab
+from mexipes.schemas import recipe_time
 from mexipes.schemas.health_nutrition_tags import format_health_nutrition_prompt_section
 from mexipes.storage import RecipeStore
 
@@ -338,6 +339,7 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
                 recipe.page_end = start_idx + recipe.page_end
 
             recipe.region = resolve_region(recipe.region, page_start=recipe.page_start, metadata=metadata)
+            recipe.total_time = recipe_time.normalize_total_time(recipe.total_time)
 
             # Render crops, discard low-quality images, and save survivors
             kept_crops = []

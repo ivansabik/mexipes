@@ -7,6 +7,7 @@ from mexipes.region import resolve_region
 from mexipes.schemas import ExtractedRecipe, RecipeStatus, RecipeTagSet, RewrittenRecipe
 from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.schemas.health_nutrition_tags import format_health_nutrition_prompt_section
+from mexipes.stages.infer_time import ensure_total_time
 from mexipes.storage import RecipeStore
 
 logger = logging.getLogger(__name__)
@@ -73,9 +74,10 @@ def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> Recip
     """
     logger.info(f"Tagging Recipe {recipe_id} in Publication {publication_id}...")
 
+    rewritten = ensure_total_time(store, publication_id, recipe_id)
+
     # Tag from the rewritten Spanish text (closest clean source to the original).
     extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
-    rewritten = store.load_stage_output(publication_id, recipe_id, "rewritten", RewrittenRecipe)
     if not rewritten:
         raise ValueError(f"No rewritten recipe data found for Publication {publication_id}, Recipe {recipe_id}")
 
@@ -104,6 +106,7 @@ def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> Recip
         f"RECETA A ETIQUETAR (en español):\n"
         f"Título: {rewritten.title}\n"
         f"Rendimiento: {rewritten.yields or 'null'}\n"
+        f"Tiempo total: {rewritten.total_time or 'null'}\n"
         f"Ingredientes:\n{rewritten.ingredients}\n"
         f"Instrucciones:\n{rewritten.instructions}\n"
     )

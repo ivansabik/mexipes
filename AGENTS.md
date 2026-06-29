@@ -57,7 +57,7 @@ extract → rewrite → describe → tag → localize → substitute → ready
 | describe | `images_described` | `images_described.json` | Status/file name ≠ stage name |
 | tag | `tagged` | `tags.json` | Runs on **Spanish** text, before localize |
 | localize | `localized` | `localized.json` + `localized_tags.json` | Translates both recipe and tag set |
-| substitute | `ready` | `substitutions.json` | Sets `ready` directly (not `substitutions_added`) |
+| substitute | `ready` | `substitutions.json` | Sets `ready` directly |
 
 ## Gotchas
 
@@ -76,9 +76,8 @@ extract → rewrite → describe → tag → localize → substitute → ready
 13. **`--batch` limits each run.** Each `mexipes run` advances at most `--batch` recipes (default 10) by one stage. Re-run until recipes reach `ready`.
 14. **Per-stage models are configurable** via `MEXIPES_*` env vars (e.g. `MEXIPES_TAGGING_MODEL`). See `config.py`.
 15. **Export writes two local artifacts:** `recipes.json` + `recipes_facets.json` (auto-named from stem). Both are gitignored — regenerate with `mexipes export`.
-16. **`SUBSTITUTIONS_ADDED` status exists but is unused.** The substitute stage jumps straight to `READY`.
-17. **Region resolution has a priority order:** recipe-level tag → regional_sections by page range → inherited_tags.region (gated by title evidence via `region_claim_supported()`).
-18. **Never commit `.env`.** Already in `.gitignore`. Use `.env.example` as template.
+16. **Region resolution has a priority order:** recipe-level tag → regional_sections by page range → inherited_tags.region (gated by title evidence via `region_claim_supported()`).
+17. **Never commit `.env`.** Already in `.gitignore`. Use `.env.example` as template.
 
 ## Common commands
 

@@ -19,7 +19,6 @@ class RecipeStatus(str, Enum):
     IMAGES_DESCRIBED = "images_described"
     LOCALIZED = "localized"
     TAGGED = "tagged"
-    SUBSTITUTIONS_ADDED = "substitutions_added"
     READY = "ready"
     FAILED = "failed"
 

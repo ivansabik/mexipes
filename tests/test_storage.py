@@ -33,15 +33,21 @@ def test_find_recipes_at_status_uses_index(tmp_path):
     assert tagged == [(1, 2)]
 
 
-def test_rebuild_status_index_from_status_files(tmp_path):
+def test_load_stage_output_logs_and_strict_raises(tmp_path, caplog):
+    import logging
+
+    from mexipes.schemas.recipe import ExtractedRecipe
+
     store = RecipeStore(tmp_path)
-    publication_id = 3
-    store.set_status(publication_id, 10, RecipeStatus.REWRITTEN)
-    store.set_status(publication_id, 11, RecipeStatus.FAILED)
+    recipe_dir = store.get_recipe_dir(1, 1)
+    (recipe_dir / "extracted.json").write_text('{"title": "x"}', encoding="utf-8")
 
-    index_path = store._status_index_path(publication_id)
-    index_path.unlink()
+    with caplog.at_level(logging.WARNING):
+        result = store.load_stage_output(1, 1, "extracted", ExtractedRecipe)
+    assert result is None
+    assert "Failed to load" in caplog.text
 
-    rebuilt = store.rebuild_status_index(publication_id)
-    assert rebuilt == {"10": "rewritten", "11": "failed"}
-    assert index_path.exists()
+    import pytest
+
+    with pytest.raises(Exception):
+        store.load_stage_output(1, 1, "extracted", ExtractedRecipe, strict=True)

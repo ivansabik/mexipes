@@ -80,14 +80,25 @@ class RecipeStore:
         file_path = recipe_dir / f"{stage_name}.json"
         file_path.write_text(data.model_dump_json(indent=4), encoding="utf-8")
 
-    def load_stage_output(self, publication_id: int, recipe_id: int, stage_name: str, model_cls: type[T]) -> T | None:
+    def load_stage_output(
+        self,
+        publication_id: int,
+        recipe_id: int,
+        stage_name: str,
+        model_cls: type[T],
+        *,
+        strict: bool = False,
+    ) -> T | None:
         recipe_dir = self.get_recipe_dir(publication_id, recipe_id)
         file_path = recipe_dir / f"{stage_name}.json"
         if not file_path.exists():
             return None
         try:
             return model_cls.model_validate_json(file_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", file_path, e)
+            if strict:
+                raise
             return None
 
     def _status_index_path(self, publication_id: int) -> Path:

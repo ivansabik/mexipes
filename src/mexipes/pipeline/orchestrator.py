@@ -1,8 +1,10 @@
 import json
 import logging
+import signal
+import time
 from pathlib import Path
 
-from mexipes.pipeline.stages import ADVANCE_PRIORITY_STATUSES, get_next_stage, run_registered_stage
+from mexipes.pipeline.stages import ADVANCE_PRIORITY_STATUSES, TERMINAL_STATUSES, get_next_stage, run_registered_stage
 from mexipes.region import resolve_region
 from mexipes.schemas import (
     ExtractedRecipe,
@@ -18,6 +20,83 @@ from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.storage import RecipeStore
 
 logger = logging.getLogger(__name__)
+
+
+def _batch_exceeded(processed: int, batch_size: int) -> bool:
+    """Return True when the batch limit is reached. batch_size <= 0 means unlimited."""
+    return batch_size > 0 and processed >= batch_size
+
+
+def _pending_recipe_count(store: RecipeStore, publication_id: int) -> int:
+    index = store.load_status_index(publication_id)
+    pending = 0
+    for status_str in index.values():
+        try:
+            if RecipeStatus(status_str) not in TERMINAL_STATUSES:
+                pending += 1
+        except ValueError:
+            pending += 1
+    return pending
+
+
+def run_pipeline_until_ready(
+    store: RecipeStore,
+    publication_id: int,
+    *,
+    stage: str | None = None,
+    batch_size: int = 10,
+    sleep_seconds: float = 0.0,
+) -> None:
+    """Run pipeline batches for a publication until every recipe is ready or failed."""
+    interrupted = False
+
+    def _handle_sigint(_signum, _frame) -> None:
+        nonlocal interrupted
+        interrupted = True
+        logger.info("SIGINT received — finishing current batch then stopping.")
+
+    previous_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, _handle_sigint)
+    try:
+        batch_num = 0
+        while not interrupted:
+            pending = _pending_recipe_count(store, publication_id)
+            if pending == 0:
+                logger.info("Publication %s: all recipes reached a terminal status.", publication_id)
+                break
+
+            batch_num += 1
+            logger.info(
+                "Publication %s batch %d: %d recipe(s) still pending (batch limit: %s).",
+                publication_id,
+                batch_num,
+                pending,
+                "unlimited" if batch_size <= 0 else batch_size,
+            )
+            before = pending
+            run_pipeline(
+                store,
+                publication_id=publication_id,
+                stage=stage,
+                batch_size=batch_size,
+            )
+            if interrupted:
+                break
+
+            after = _pending_recipe_count(store, publication_id)
+            if after >= before:
+                logger.warning(
+                    "Publication %s: no progress in batch %d (%d still pending) — stopping.",
+                    publication_id,
+                    batch_num,
+                    after,
+                )
+                break
+
+            if sleep_seconds > 0 and after > 0:
+                time.sleep(sleep_seconds)
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
 
 
 def run_stage_for_recipe(store: RecipeStore, publication_id: int, recipe_id: int, stage_name: str) -> None:
@@ -44,8 +123,22 @@ def run_pipeline(
     stage: str | None = None,
     advance_all: bool = False,
     batch_size: int = 10,
+    all_stages: bool = False,
+    sleep_seconds: float = 0.0,
 ) -> None:
     """Orchestrates stage advancement based on CLI parameters."""
+    if all_stages:
+        if publication_id is None:
+            raise ValueError("--all-stages requires --publication")
+        run_pipeline_until_ready(
+            store,
+            publication_id,
+            stage=stage,
+            batch_size=batch_size,
+            sleep_seconds=sleep_seconds,
+        )
+        return
+
     # Check for PDFs in data/staging and auto-ingest if found
     staging_dir = store.data_dir / "staging"
     if staging_dir.exists():
@@ -92,7 +185,7 @@ def run_pipeline(
 
         processed = 0
         for pub_id, r_id in recipes:
-            if processed >= batch_size:
+            if _batch_exceeded(processed, batch_size):
                 break
             try:
                 if stage:
@@ -142,7 +235,7 @@ def run_pipeline(
         # then TAGGED -> localize, then IMAGES_DESCRIBED -> tag, etc.).
         for status_to_advance in ADVANCE_PRIORITY_STATUSES:
             for pub_id, r_id in all_recipes:
-                if processed >= batch_size:
+                if _batch_exceeded(processed, batch_size):
                     break
                 recipe_key = (pub_id, r_id)
                 if status_by_recipe[recipe_key] == status_to_advance:

@@ -47,7 +47,21 @@ def run(
         help="Run a specific stage (extract, rewrite, describe, tag, localize, substitute)",
     ),
     advance_all: bool = typer.Option(False, "--advance-all", help="Advance all pending recipes through the next stage"),
-    batch_size: int = typer.Option(10, "--batch", help="Max number of recipes to process in this run"),
+    all_stages: bool = typer.Option(
+        False,
+        "--all-stages",
+        help="Loop batches until all recipes in --publication reach ready (requires --publication)",
+    ),
+    batch_size: int = typer.Option(
+        10,
+        "--batch",
+        help="Max recipes per batch (0 = unlimited)",
+    ),
+    sleep_seconds: float = typer.Option(
+        0.0,
+        "--sleep",
+        help="Seconds to wait between batches when using --all-stages",
+    ),
 ):
     """Run pipeline stages for publications/recipes."""
     store = get_store()
@@ -65,6 +79,10 @@ def run(
             typer.echo("Error: Recipe IDs must be integers", err=True)
             raise typer.Exit(code=1) from None
 
+    if all_stages and publication_id is None:
+        typer.echo("Error: --all-stages requires --publication", err=True)
+        raise typer.Exit(code=1)
+
     typer.echo("Running content pipeline...")
     run_pipeline(
         store=store,
@@ -73,6 +91,8 @@ def run(
         stage=stage,
         advance_all=advance_all,
         batch_size=batch_size,
+        all_stages=all_stages,
+        sleep_seconds=sleep_seconds,
     )
 
 

@@ -23,6 +23,13 @@ ADVANCE_PRIORITY_STATUSES: list[RecipeStatus] = [before for _stage_name, before,
 
 TERMINAL_STATUSES: frozenset[RecipeStatus] = frozenset({RecipeStatus.READY, RecipeStatus.FAILED})
 
+# Monotonic rank for progress detection in --all-stages (higher = further along).
+STATUS_ADVANCEMENT_RANK: dict[RecipeStatus, int] = {RecipeStatus.EXTRACTED: 0}
+for _rank, (_name, _before, after) in enumerate(PIPELINE_STAGES, start=1):
+    STATUS_ADVANCEMENT_RANK[after] = _rank
+STATUS_ADVANCEMENT_RANK[RecipeStatus.READY] = len(PIPELINE_STAGES)
+STATUS_ADVANCEMENT_RANK[RecipeStatus.FAILED] = len(PIPELINE_STAGES)
+
 
 def get_next_stage(status: RecipeStatus) -> str | None:
     """Map current RecipeStatus to the next stage name to run."""

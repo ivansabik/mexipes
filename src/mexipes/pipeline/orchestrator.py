@@ -4,7 +4,13 @@ import signal
 import time
 from pathlib import Path
 
-from mexipes.pipeline.stages import ADVANCE_PRIORITY_STATUSES, TERMINAL_STATUSES, get_next_stage, run_registered_stage
+from mexipes.pipeline.stages import (
+    ADVANCE_PRIORITY_STATUSES,
+    STATUS_ADVANCEMENT_RANK,
+    TERMINAL_STATUSES,
+    get_next_stage,
+    run_registered_stage,
+)
 from mexipes.region import resolve_region
 from mexipes.schemas import (
     ExtractedRecipe,
@@ -39,6 +45,28 @@ def _pending_recipe_count(store: RecipeStore, publication_id: int) -> int:
     return pending
 
 
+def _pipeline_progress_snapshot(store: RecipeStore, publication_id: int) -> tuple[int, int]:
+    """Return (advancement_score, pending_count) for --all-stages progress checks.
+
+    ``pending_count`` only drops when recipes reach ready/failed. ``advancement_score``
+    increases on every successful stage (e.g. extracted→rewritten), so the all-stages
+    loop must treat either metric improving as forward progress.
+    """
+    index = store.load_status_index(publication_id)
+    score = 0
+    pending = 0
+    for status_str in index.values():
+        try:
+            status = RecipeStatus(status_str)
+        except ValueError:
+            pending += 1
+            continue
+        score += STATUS_ADVANCEMENT_RANK.get(status, 0)
+        if status not in TERMINAL_STATUSES:
+            pending += 1
+    return score, pending
+
+
 def run_pipeline_until_ready(
     store: RecipeStore,
     publication_id: int,
@@ -60,7 +88,7 @@ def run_pipeline_until_ready(
     try:
         batch_num = 0
         while not interrupted:
-            pending = _pending_recipe_count(store, publication_id)
+            _score, pending = _pipeline_progress_snapshot(store, publication_id)
             if pending == 0:
                 logger.info("Publication %s: all recipes reached a terminal status.", publication_id)
                 break
@@ -73,7 +101,7 @@ def run_pipeline_until_ready(
                 pending,
                 "unlimited" if batch_size <= 0 else batch_size,
             )
-            before = pending
+            before_score, before_pending = _pipeline_progress_snapshot(store, publication_id)
             run_pipeline(
                 store,
                 publication_id=publication_id,
@@ -83,17 +111,17 @@ def run_pipeline_until_ready(
             if interrupted:
                 break
 
-            after = _pending_recipe_count(store, publication_id)
-            if after >= before:
+            after_score, after_pending = _pipeline_progress_snapshot(store, publication_id)
+            if after_score <= before_score and after_pending >= before_pending:
                 logger.warning(
                     "Publication %s: no progress in batch %d (%d still pending) — stopping.",
                     publication_id,
                     batch_num,
-                    after,
+                    after_pending,
                 )
                 break
 
-            if sleep_seconds > 0 and after > 0:
+            if sleep_seconds > 0 and after_pending > 0:
                 time.sleep(sleep_seconds)
     finally:
         signal.signal(signal.SIGINT, previous_handler)
@@ -184,21 +212,43 @@ def run_pipeline(
             recipes = extract_publication_recipes(store, publication_id)
 
         processed = 0
-        for pub_id, r_id in recipes:
-            if _batch_exceeded(processed, batch_size):
-                break
-            try:
-                if stage:
+        if stage:
+            for pub_id, r_id in recipes:
+                if _batch_exceeded(processed, batch_size):
+                    break
+                try:
                     run_stage_for_recipe(store, pub_id, r_id, stage)
                     processed += 1
-                else:
-                    current_status = store.get_status(pub_id, r_id)
-                    next_stage = get_next_stage(current_status)
-                    if next_stage:
-                        run_stage_for_recipe(store, pub_id, r_id, next_stage)
-                        processed += 1
-            except Exception:
-                continue
+                except Exception:
+                    logger.exception(
+                        "Stage '%s' failed for Publication %s, Recipe %s (continuing batch)",
+                        stage,
+                        pub_id,
+                        r_id,
+                    )
+            return
+
+        status_by_recipe = {r_id: store.get_status(publication_id, r_id) for _, r_id in recipes}
+        for status_to_advance in ADVANCE_PRIORITY_STATUSES:
+            for pub_id, r_id in recipes:
+                if _batch_exceeded(processed, batch_size):
+                    return
+                if status_by_recipe[r_id] != status_to_advance:
+                    continue
+                next_stage = get_next_stage(status_to_advance)
+                if not next_stage:
+                    continue
+                try:
+                    run_stage_for_recipe(store, pub_id, r_id, next_stage)
+                    status_by_recipe[r_id] = store.get_status(pub_id, r_id)
+                    processed += 1
+                except Exception:
+                    logger.exception(
+                        "Stage '%s' failed for Publication %s, Recipe %s (continuing batch)",
+                        next_stage,
+                        pub_id,
+                        r_id,
+                    )
         return
 
     # Scenario 3: Advance all recipes in the workspace

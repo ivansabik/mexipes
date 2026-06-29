@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from mexipes.pipeline.stages import get_next_stage, run_registered_stage
+from mexipes.pipeline.stages import ADVANCE_PRIORITY_STATUSES, get_next_stage, run_registered_stage
 from mexipes.region import resolve_region
 from mexipes.schemas import (
     ExtractedRecipe,
@@ -135,27 +135,22 @@ def run_pipeline(
         # Second: gather all recipes and advance them sequentially
         all_recipes = store.find_all_recipes()
         processed = 0
+        status_by_recipe = {key: store.get_status(*key) for key in all_recipes}
 
         # Run multiple passes through status priorities to process in pipeline order
         # i.e. advance the furthest-along recipes first (LOCALIZED -> substitute,
         # then TAGGED -> localize, then IMAGES_DESCRIBED -> tag, etc.).
-        status_order = [
-            RecipeStatus.LOCALIZED,
-            RecipeStatus.TAGGED,
-            RecipeStatus.IMAGES_DESCRIBED,
-            RecipeStatus.REWRITTEN,
-            RecipeStatus.EXTRACTED,
-        ]
-
-        for status_to_advance in status_order:
+        for status_to_advance in ADVANCE_PRIORITY_STATUSES:
             for pub_id, r_id in all_recipes:
                 if processed >= batch_size:
                     break
-                if store.get_status(pub_id, r_id) == status_to_advance:
+                recipe_key = (pub_id, r_id)
+                if status_by_recipe[recipe_key] == status_to_advance:
                     next_stage = get_next_stage(status_to_advance)
                     if next_stage:
                         try:
                             run_stage_for_recipe(store, pub_id, r_id, next_stage)
+                            status_by_recipe[recipe_key] = store.get_status(pub_id, r_id)
                             processed += 1
                         except Exception:
                             pass

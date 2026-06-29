@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 
 from mexipes.inherited_tags import region_claim_supported
 from mexipes.recipe_validation import is_non_recipe_extraction
-from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.schemas import recipe_time
+from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.schemas.health_nutrition_tags import VALID_HEALTH_NUTRITION_ES
 from mexipes.schemas.publication import PublicationMetadata
 from mexipes.schemas.recipe import (

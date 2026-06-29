@@ -16,14 +16,10 @@ PIPELINE_STAGES: list[tuple[str, RecipeStatus, RecipeStatus]] = [
     ("substitute", RecipeStatus.LOCALIZED, RecipeStatus.READY),
 ]
 
-NEXT_STAGE_BY_STATUS: dict[RecipeStatus, str] = {
-    before: stage_name for stage_name, before, _after in PIPELINE_STAGES
-}
+NEXT_STAGE_BY_STATUS: dict[RecipeStatus, str] = {before: stage_name for stage_name, before, _after in PIPELINE_STAGES}
 
 # Furthest-along recipes first when batching workspace-wide advancement.
-ADVANCE_PRIORITY_STATUSES: list[RecipeStatus] = [
-    before for _stage_name, before, _after in reversed(PIPELINE_STAGES)
-]
+ADVANCE_PRIORITY_STATUSES: list[RecipeStatus] = [before for _stage_name, before, _after in reversed(PIPELINE_STAGES)]
 
 TERMINAL_STATUSES: frozenset[RecipeStatus] = frozenset({RecipeStatus.READY, RecipeStatus.FAILED})
 

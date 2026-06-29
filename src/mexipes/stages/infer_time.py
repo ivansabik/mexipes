@@ -14,10 +14,7 @@ logger = logging.getLogger(__name__)
 class TotalTimeEstimate(BaseModel):
     total_time: str = Field(
         ...,
-        description=(
-            "Tiempo total (uno de: Menos de 30 min, 30-60 min, 1-2 horas, "
-            "2+ horas, Desconocido, N/A)"
-        ),
+        description=("Tiempo total (uno de: Menos de 30 min, 30-60 min, 1-2 horas, 2+ horas, Desconocido, N/A)"),
     )
 
 

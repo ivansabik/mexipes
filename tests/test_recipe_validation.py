@@ -140,16 +140,12 @@ def test_normalize_dual_line_title_separator():
     assert normalize_dual_line_title("Chilaquiles rojos / Tortilla con chile") == (
         "Chilaquiles rojos - Tortilla con chile"
     )
-    assert normalize_dual_line_title("Esquites - Granos de maíz cocidos") == (
-        "Esquites - Granos de maíz cocidos"
-    )
+    assert normalize_dual_line_title("Esquites - Granos de maíz cocidos") == ("Esquites - Granos de maíz cocidos")
 
 
 def test_resolve_index_title_from_subtitle():
     index = [RecipeIndexEntry(title="Esquites - Granos de maíz cocidos", page=40)]
-    assert resolve_index_title("Granos de Maíz Cocidos", 40, index) == (
-        "Esquites - Granos de maíz cocidos"
-    )
+    assert resolve_index_title("Granos de Maíz Cocidos", 40, index) == ("Esquites - Granos de maíz cocidos")
 
 
 def test_matches_recipe_index_fuzzy_subtitle():

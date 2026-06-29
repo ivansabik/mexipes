@@ -118,8 +118,7 @@ def discover_index_page_range(pdf_path: Path, total_pages: int) -> IndexPageDisc
                 model=settings.metadata.model,
                 response_model=IndexPageDiscovery,
                 prompt=(
-                    f"{prompt}\n\nThese are PDF pages {chunk_start + 1} to {chunk_end} "
-                    f"of {total_pages} total pages."
+                    f"{prompt}\n\nThese are PDF pages {chunk_start + 1} to {chunk_end} of {total_pages} total pages."
                 ),
                 pdf_bytes=chunk_bytes,
                 temperature=settings.metadata.temperature,
@@ -216,8 +215,7 @@ def build_chunk_context(
         region_str = ", ".join(chunk_regions_text)
         parts.append(f"- Regional Mappings for THIS chunk: {region_str}")
         parts.append(
-            "If a recipe falls into these local page numbers, ALWAYS use that region "
-            "unless its header overrides it."
+            "If a recipe falls into these local page numbers, ALWAYS use that region unless its header overrides it."
         )
     elif region_claim_supported(metadata):
         inherited_region = metadata.inherited_tags.region or ""
@@ -278,10 +276,7 @@ def _render_and_save_crop(
         metrics = assess_image_quality(png_bytes)
         low_quality, reason = is_low_quality(metrics, settings.image_quality)
         if low_quality:
-            logger.info(
-                f"Discarded low-quality image crop ({reason}) "
-                f"for recipe '{recipe_title}' (Recipe {recipe_id})"
-            )
+            logger.info(f"Discarded low-quality image crop ({reason}) for recipe '{recipe_title}' (Recipe {recipe_id})")
             return False
 
     dest_image_path = images_dir / f"{crop_index}.png"
@@ -571,9 +566,7 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
             if metadata.recipe_index and not matches_recipe_index(
                 recipe.title, recipe.page_start, metadata.recipe_index
             ):
-                logger.info(
-                    f"Skipping extraction not in recipe index: '{recipe.title}' (page {recipe.page_start})"
-                )
+                logger.info(f"Skipping extraction not in recipe index: '{recipe.title}' (page {recipe.page_start})")
                 continue
 
             recipe.title = resolve_index_title(recipe.title, recipe.page_start, metadata.recipe_index)

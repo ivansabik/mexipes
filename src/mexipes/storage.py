@@ -109,9 +109,7 @@ class RecipeStore:
 
     def _read_status_from_disk(self, publication_id: int, recipe_id: int) -> RecipeStatus:
         """Read recipe status from status.json without creating directories."""
-        status_file = (
-            self.data_dir / "publications" / str(publication_id) / "recipes" / str(recipe_id) / "status.json"
-        )
+        status_file = self.data_dir / "publications" / str(publication_id) / "recipes" / str(recipe_id) / "status.json"
         if not status_file.exists():
             return RecipeStatus.EXTRACTED
         try:

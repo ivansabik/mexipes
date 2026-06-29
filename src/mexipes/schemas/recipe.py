@@ -38,8 +38,7 @@ class ExtractedRecipe(BaseModel):
     total_time: str | None = Field(
         None,
         description=(
-            "Total elapsed time bucket in Spanish "
-            "(Menos de 30 min, 30-60 min, 1-2 horas, 2+ horas, Desconocido, N/A)"
+            "Total elapsed time bucket in Spanish (Menos de 30 min, 30-60 min, 1-2 horas, 2+ horas, Desconocido, N/A)"
         ),
     )
     ingredients: str = Field(..., description="List of ingredients in Spanish")

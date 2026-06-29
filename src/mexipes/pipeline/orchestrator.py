@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 
+from mexipes.pipeline.stages import get_next_stage, run_registered_stage
 from mexipes.region import resolve_region
 from mexipes.schemas import (
     ExtractedRecipe,
@@ -28,28 +29,8 @@ def run_stage_for_recipe(store: RecipeStore, publication_id: int, recipe_id: int
             from mexipes.stages.extract import extract_publication_recipes
 
             extract_publication_recipes(store, publication_id)
-        elif stage_name == "rewrite":
-            from mexipes.stages.rewrite import rewrite_recipe
-
-            rewrite_recipe(store, publication_id, recipe_id)
-        elif stage_name == "describe":
-            from mexipes.stages.describe import describe_images
-
-            describe_images(store, publication_id, recipe_id)
-        elif stage_name == "localize":
-            from mexipes.stages.localize import localize_recipe
-
-            localize_recipe(store, publication_id, recipe_id)
-        elif stage_name == "tag":
-            from mexipes.stages.tag import tag_recipe
-
-            tag_recipe(store, publication_id, recipe_id)
-        elif stage_name == "substitute":
-            from mexipes.stages.substitute import substitute_ingredients
-
-            substitute_ingredients(store, publication_id, recipe_id)
         else:
-            raise ValueError(f"Unknown stage: {stage_name}")
+            run_registered_stage(store, publication_id, recipe_id, stage_name)
     except Exception as e:
         logger.exception(f"Stage '{stage_name}' failed for Publication {publication_id}, Recipe {recipe_id}")
         store.set_status(publication_id, recipe_id, RecipeStatus.FAILED, error=str(e))
@@ -180,22 +161,6 @@ def run_pipeline(
                             pass
 
         logger.info(f"Pipeline batch run completed. Advanced {processed} recipes.")
-
-
-def get_next_stage(status: RecipeStatus) -> str | None:
-    """Map current RecipeStatus to the next stage name to run.
-
-    Tagging runs on the rewritten Spanish text *before* localization, so the
-    localize stage can translate both the recipe and its tag set into English.
-    """
-    mapping = {
-        RecipeStatus.EXTRACTED: "rewrite",
-        RecipeStatus.REWRITTEN: "describe",
-        RecipeStatus.IMAGES_DESCRIBED: "tag",
-        RecipeStatus.TAGGED: "localize",
-        RecipeStatus.LOCALIZED: "substitute",
-    }
-    return mapping.get(status)
 
 
 def export_recipes(store: RecipeStore, status_filter: RecipeStatus, output_path: Path) -> None:

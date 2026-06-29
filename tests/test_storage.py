@@ -33,6 +33,20 @@ def test_find_recipes_at_status_uses_index(tmp_path):
     assert tagged == [(1, 2)]
 
 
+def test_rebuild_status_index_from_status_files(tmp_path):
+    store = RecipeStore(tmp_path)
+    publication_id = 3
+    store.set_status(publication_id, 10, RecipeStatus.REWRITTEN)
+    store.set_status(publication_id, 11, RecipeStatus.FAILED)
+
+    index_path = store._status_index_path(publication_id)
+    index_path.unlink()
+
+    rebuilt = store.rebuild_status_index(publication_id)
+    assert rebuilt == {"10": "rewritten", "11": "failed"}
+    assert index_path.exists()
+
+
 def test_load_stage_output_logs_and_strict_raises(tmp_path, caplog):
     import logging
 

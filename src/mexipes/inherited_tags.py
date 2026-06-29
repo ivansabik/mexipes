@@ -21,6 +21,8 @@ _REGIONAL_TITLE_PREFIXES = (
 )
 
 _TRADICIONAL_REGIONAL = "Tradicional Regional"
+_MAX_HEALTH_NUTRITION_TAGS = 3
+_VEGAN_DIETARY = frozenset({"Vegano", "Vegetariano"})
 
 # Trim geographic remainder at volume/edition markers.
 _REMAINDER_TRIM = re.compile(r"[.;]|(?:\s|^)vol(?:\.|\s|\d)|(?:\s|^)m[eé]xico(?:\s|$)", re.IGNORECASE)
@@ -103,8 +105,17 @@ def region_claim_supported(metadata: PublicationMetadata) -> bool:
     return _title_claims_region(metadata.document_title)
 
 
+def protein_inheritance_allowed(inherited: InheritedTags) -> bool:
+    """Return True when publication-level protein tags may propagate to recipes."""
+    if not inherited.protein:
+        return False
+    if len(inherited.protein) == 1:
+        return True
+    return bool(set(inherited.dietary) & _VEGAN_DIETARY)
+
+
 def sanitize_inherited_tags(metadata: PublicationMetadata) -> InheritedTags:
-    """Clear unsupported geographic inherited tags before they propagate to recipes."""
+    """Clear unsupported or over-broad inherited tags before they propagate to recipes."""
     inherited = metadata.inherited_tags.model_copy(deep=True)
 
     if not region_claim_supported(metadata):
@@ -120,5 +131,11 @@ def sanitize_inherited_tags(metadata: PublicationMetadata) -> InheritedTags:
             and _TRADICIONAL_REGIONAL not in inherited.cuisine_style
         ):
             inherited.cuisine_style = [*inherited.cuisine_style, _TRADICIONAL_REGIONAL]
+
+    if not protein_inheritance_allowed(inherited):
+        inherited.protein = []
+
+    if len(inherited.health_nutrition) > _MAX_HEALTH_NUTRITION_TAGS:
+        inherited.health_nutrition = inherited.health_nutrition[:_MAX_HEALTH_NUTRITION_TAGS]
 
     return inherited

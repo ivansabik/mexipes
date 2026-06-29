@@ -77,7 +77,16 @@ PROTEIN_ALIASES: dict[str, str] = {
     "Mero": "Pescado",
     "Sierra": "Pescado",
     "Dorado": "Pescado",
+    "Puerco": "Cerdo",
+    "Cochino": "Cerdo",
 }
+
+# Closed scalar fields where an invalid value should be dropped (set to None)
+# rather than kept and leaking untranslated. Required scalars like
+# ``primary_protein`` are coerced via aliases instead.
+OPTIONAL_CLOSED_SCALAR_FIELDS: frozenset[str] = frozenset(
+    {"spiciness", "difficulty", "total_time", "active_time", "budget", "serving_size", "kid_friendly"}
+)
 
 SPICINESS: list[TagTerm] = [
     ("mild", "Suave", "Mild"),
@@ -550,7 +559,9 @@ def sanitize_recipe_tags_data(data: dict) -> dict:
     if it is still not in the field's vocabulary (order-preserving, de-duplicated).
 
     Scalar fields, open fields (``region``, ``chile_type``, ``key_ingredient``,
-    ``cooking_equipment``), and any non-vocabulary field are left untouched.
+    ``cooking_equipment``), ``health_nutrition`` (English canonical), and any
+    non-vocabulary field are left untouched except for ``primary_protein`` (coerced
+    via aliases) and optional closed scalars (invalid values dropped to ``None``).
     """
     out = dict(data)
     for field in VOCABULARIES:
@@ -570,10 +581,20 @@ def sanitize_recipe_tags_data(data: dict) -> dict:
                 cleaned.append(canonical)
         out[field] = cleaned
     # Coerce the required scalar `primary_protein` onto its canonical bucket so a
-    # specific species (e.g. 'Atún') never produces an invalid-enum DQ error.
+    # synonym or species (e.g. 'Atún', 'Puerco') never produces an invalid-enum DQ error.
     primary = data.get("primary_protein")
     if isinstance(primary, str):
-        out["primary_protein"] = PROTEIN_ALIASES.get(primary, primary)
+        canonical = normalize_value_to_es("primary_protein", primary)
+        canonical = PROTEIN_ALIASES.get(canonical or primary, canonical or primary)
+        out["primary_protein"] = canonical
+    # Drop invalid values from optional closed scalars (e.g. spiciness 'Medio'
+    # placed in kid_friendly).
+    for field in OPTIONAL_CLOSED_SCALAR_FIELDS:
+        value = data.get(field)
+        if not isinstance(value, str):
+            continue
+        canonical = normalize_value_to_es(field, value)
+        out[field] = canonical if canonical in es_values(field) else None
     return out
 
 
@@ -676,24 +697,25 @@ def slug_map_for(tag_data: dict) -> dict[str, list[str]]:
     return result
 
 
-# Fields on ``InheritedTags`` (publication-level defaults merged into each recipe).
+# Fields on ``InheritedTags`` (publication-level theme tags from title/first pages).
 INHERITED_TAG_FIELDS: tuple[str, ...] = (
-    "course",
-    "meal_type",
     "region",
-    "protein",
-    "spiciness",
-    "dietary",
-    "cooking_method",
-    "chile_type",
-    "cuisine_style",
-    "difficulty",
-    "total_time",
     "season",
-    "key_ingredient",
+    "dietary",
     "budget",
-    "cooking_equipment",
     "health_nutrition",
+    "cuisine_style",
+    "protein",
+)
+
+# Theme fields merged into recipe tags after the tag LLM (``region`` uses resolve_region instead).
+INHERITABLE_MERGE_FIELDS: tuple[str, ...] = (
+    "season",
+    "dietary",
+    "budget",
+    "health_nutrition",
+    "cuisine_style",
+    "protein",
 )
 
 
@@ -738,33 +760,24 @@ def format_inherited_tags_prompt_section() -> str:
         suffix = f" {note}" if note else ""
         lines.append(f"- **{field}** ({label_es}): {values}.{suffix}")
 
-    render("course", "tipo de plato")
-    render("meal_type", "momento de la comida")
     render(
         "region",
         "región mexicana",
         "Solo si TODAS las recetas son de esa región y el título/subtítulo lo afirma. NO uses autor, editor ni institución publicadora.",
     )
-    render(
-        "protein",
-        "proteínas",
-        "p. ej. `Pollo`, `Ninguno` para vegano/vegetariano. Cualquier pez de aleta (atún, salmón, etc.) es `Pescado`.",
-    )
-    render("spiciness", "picor", "Elige EXACTAMENTE una si aplica a todo el libro.")
+    render("season", "temporada o evento", "p. ej. bolis/paletas/nieves → `Verano`; no uses `Todo el Año` por defecto.")
     render("dietary", "dietético", "Si es vegano: `Vegano`, `Vegetariano`, `Sin Lácteos`.")
-    render("cooking_method", "método de cocción")
-    render("chile_type", "chiles")
+    render("budget", "presupuesto", "Elige EXACTAMENTE una si aplica globalmente.")
     render(
         "cuisine_style",
         "estilo de cocina",
         "`Tradicional Regional` solo si el libro afirma explícitamente cocina regional/tradicional; no por nombre de estado en la editorial.",
     )
-    render("difficulty", "dificultad", "Elige EXACTAMENTE una si aplica globalmente.")
-    render("total_time", "tiempo total", "Elige EXACTAMENTE una si aplica globalmente.")
-    render("season", "temporada o evento", "p. ej. bolis/paletas/nieves → `Verano`; no uses `Todo el Año` por defecto.")
-    render("key_ingredient", "ingredientes clave")
-    render("budget", "presupuesto", "Elige EXACTAMENTE una si aplica globalmente.")
-    render("cooking_equipment", "equipo", "p. ej. `Comal`, `Licuadora`.")
+    render(
+        "protein",
+        "proteínas",
+        "Solo UNA proteína si el libro es exclusivamente de ella (p. ej. `Pollo`). `Ninguno` para vegano. NO listes varias proteínas.",
+    )
 
     return "\n".join(lines)
 

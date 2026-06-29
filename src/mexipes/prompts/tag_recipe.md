@@ -24,6 +24,10 @@ Eres un experto en gastronomía, cultura y artes culinarias mexicanas. Tu tarea 
 - Elige EXACTAMENTE una proteína: la más prominente del plato.
 - Usa `Ninguno` para platos vegetarianos o centrados en vegetales.
 - `protein` (lista) puede contener fuentes secundarias además de la principal.
+- Usa **`Cerdo`** (no `Puerco` ni `Cochino`) para cerdo/puerco.
+
+## Reglas para `kid_friendly`:
+- Valores válidos: `Suave`, `Moderado`, `No apto para niños` — **NO uses valores de picor** (`Medio`, `Picante`, etc.) aquí.
 
 ## Reglas para `course`, `meal_type` y `occasion` (no los confundas):
 - `course` = tipo de plato: SOLO `Entrada`, `Plato Principal`, `Guarnición`, `Sopa`, `Postre`, `Bebida`, `Ensalada`, `Pan`.

@@ -1,6 +1,7 @@
 import logging
 
 from mexipes.config import settings
+from mexipes.inherited_tags import protein_inheritance_allowed
 from mexipes.llm import call_llm, load_prompt
 from mexipes.region import resolve_region
 from mexipes.schemas import ExtractedRecipe, RecipeStatus, RecipeTagSet, RewrittenRecipe
@@ -12,17 +13,26 @@ logger = logging.getLogger(__name__)
 
 
 def _merge_inherited_tags(tags: RecipeTagSet, inherited) -> None:
-    """Merge publication-level inherited tags into a Spanish recipe tag set.
+    """Merge publication-level theme tags into a Spanish recipe tag set.
 
-    Inherited tags may have been produced in English, so each value is first
-    normalized to its canonical Spanish label before merging.
+    Only fields in INHERITABLE_MERGE_FIELDS are merged. Region is handled by
+    resolve_region(). Budget overrides the recipe value when inherited is set.
     """
-    for field_name, value in inherited.model_dump().items():
-        if field_name == "region":
+    for field_name in vocab.INHERITABLE_MERGE_FIELDS:
+        if field_name == "protein" and not protein_inheritance_allowed(inherited):
             continue
+
+        value = getattr(inherited, field_name, None)
         if not value:
             continue
+
         recipe_value = getattr(tags, field_name, None)
+
+        if field_name == "budget" and isinstance(value, str):
+            normalized = vocab.normalize_value_to_es(field_name, value)
+            setattr(tags, field_name, normalized)
+            continue
+
         if isinstance(value, list):
             if recipe_value is None:
                 continue
@@ -33,6 +43,26 @@ def _merge_inherited_tags(tags: RecipeTagSet, inherited) -> None:
         elif isinstance(value, str) and not recipe_value:
             normalized = vocab.normalize_value_to_es(field_name, value)
             setattr(tags, field_name, normalized)
+
+
+def _format_inherited_context(inherited) -> str:
+    """Build tag-LLM context string for publication theme tags."""
+    if not inherited:
+        return ""
+
+    inherited_items = []
+    for field_name in vocab.INHERITABLE_MERGE_FIELDS:
+        if field_name == "protein" and not protein_inheritance_allowed(inherited):
+            continue
+        value = getattr(inherited, field_name, None)
+        if value:
+            inherited_items.append(f"{field_name}: {value}")
+    if inherited.region:
+        inherited_items.append(f"region: {inherited.region}")
+
+    if not inherited_items:
+        return ""
+    return f"Etiquetas globales/heredadas de esta publicación: {', '.join(inherited_items)}\n"
 
 
 def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> RecipeTagSet:
@@ -54,21 +84,7 @@ def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> Recip
     pub_title = metadata.document_title if metadata else "Unknown"
     inherited_tags = metadata.inherited_tags if metadata else None
 
-    inherited_context_str = ""
-    if inherited_tags:
-        inherited_items = []
-        if inherited_tags.dietary:
-            inherited_items.append(f"dietary: {inherited_tags.dietary}")
-        if inherited_tags.region:
-            inherited_items.append(f"region: {inherited_tags.region}")
-        if inherited_tags.cuisine_style:
-            inherited_items.append(f"cuisine_style: {inherited_tags.cuisine_style}")
-        if inherited_tags.protein:
-            inherited_items.append(f"protein: {inherited_tags.protein}")
-        if inherited_tags.health_nutrition:
-            inherited_items.append(f"health_nutrition: {inherited_tags.health_nutrition}")
-        if inherited_items:
-            inherited_context_str = f"Etiquetas globales/heredadas de esta publicación: {', '.join(inherited_items)}\n"
+    inherited_context_str = _format_inherited_context(inherited_tags)
 
     prompt_template = load_prompt("tag_recipe.md")
     prompt_template = prompt_template.replace(

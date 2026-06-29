@@ -79,6 +79,20 @@ def test_inherited_protein_species_coerced_and_deduped():
     assert inherited["primary_protein"] == "Pescado"
 
 
+def test_primary_protein_puerco_coerced_to_cerdo():
+    data = _minimal_tag_data(primary_protein="Puerco", protein=["Pollo", "Puerco"])
+    cleaned = vocab.sanitize_recipe_tags_data(data)
+    assert cleaned["primary_protein"] == "Cerdo"
+    assert cleaned["protein"] == ["Pollo", "Cerdo"]
+
+
+def test_invalid_kid_friendly_scalar_dropped():
+    data = _minimal_tag_data(kid_friendly="Medio", spiciness="Medio")
+    cleaned = vocab.sanitize_recipe_tags_data(data)
+    assert cleaned["kid_friendly"] is None
+    assert cleaned["spiciness"] == "Medio"
+
+
 def test_sanitized_tags_do_not_leak_untranslated_into_localized():
     data = _minimal_tag_data(course=["Plato Principal", "Botana"], meal_type=["Botana"])
     tags = RecipeTagSet(**vocab.sanitize_recipe_tags_data(data))

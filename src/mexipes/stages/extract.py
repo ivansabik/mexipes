@@ -644,6 +644,16 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
     if stripped:
         logger.info(f"Removed generic template images from {stripped} recipe(s) in Publication {publication_id}")
 
+    # When the LLM cannot read a TOC count, backfill from the actual extraction result.
+    metadata = store.load_publication_metadata(publication_id)
+    if metadata:
+        count_str = (metadata.recipes_count or "").strip().lower()
+        if not count_str or count_str in ("null", "none", "n/a"):
+            actual = len(extracted_recipe_keys)
+            metadata.recipes_count = str(actual)
+            store.save_publication_metadata(publication_id, metadata)
+            logger.info(f"Backfilled recipes_count={actual} for Publication {publication_id}")
+
     if not has_errors:
         pub_info_path = publication_dir / "publication_info.json"
         if pub_info_path.exists():

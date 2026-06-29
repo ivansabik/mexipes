@@ -34,6 +34,8 @@ def test_has_unicode_fractions():
 def test_has_section_headers():
     assert has_section_headers("INGREDIENTES:\n2 tazas")
     assert not has_section_headers("2 tazas de arroz")
+    assert not has_section_headers("Modo de preparación:\n1. Cocer el arroz.")
+    assert strip_section_headers("Modo de preparación:\n1. Cocer el arroz.") == "1. Cocer el arroz."
 
 
 def test_normalize_title_es_all_caps():

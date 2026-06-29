@@ -21,7 +21,10 @@ FRACTION_MAP: dict[str, str] = {
 UNICODE_FRACTION_PATTERN = re.compile(r"[½¼¾⅓⅔⅛⅜⅝⅞⅕]")
 
 SECTION_HEADER_LINE_PATTERN = re.compile(
-    r"(?i)^\s*(INGREDIENTES?|PREPARACI[ÓO]N|PROCEDIMIENTO|ELABORACI[ÓO]N|MODO DE PREPARAR)\s*:?\s*\n?"
+    r"(?i)^\s*("
+    r"INGREDIENTES?|PREPARACI[ÓO]N|PROCEDIMIENTO|ELABORACI[ÓO]N|"
+    r"MODO DE PREPARAR|MODO DE PREPARACI[ÓO]N"
+    r")\s*:?\s*\n?"
 )
 
 SECTION_HEADER_INLINE_PATTERN = re.compile(r"(?i)\b(INGREDIENTES?|PREPARACI[ÓO]N|PROCEDIMIENTO|ELABORACI[ÓO]N)\s*:")
@@ -59,7 +62,15 @@ def has_unicode_fractions(text: str | None) -> bool:
 
 def has_section_headers(text: str | None) -> bool:
     """Return True if text contains leftover section header labels."""
-    return bool(SECTION_HEADER_INLINE_PATTERN.search(text or ""))
+    if not text:
+        return False
+    t = text.strip()
+    # Benign instructional lead-in (stripped at extraction; not a DQ issue).
+    if re.match(r"(?i)^\s*modo de preparación\s*:", t):
+        return False
+    if SECTION_HEADER_LINE_PATTERN.match(t):
+        return True
+    return bool(SECTION_HEADER_INLINE_PATTERN.search(t))
 
 
 def _is_all_caps(title: str) -> bool:

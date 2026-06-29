@@ -30,6 +30,11 @@ def describe_images(store: RecipeStore, publication_id: int, recipe_id: int) -> 
 
     prompt_template = load_prompt("describe_image.md")
 
+    # Construct recipe context for the LLM
+    recipe_context = (
+        f"<recipe_context>\nRecipe Title: {extracted.title}\nIngredients:\n{extracted.ingredients}\n</recipe_context>"
+    )
+
     # Iterate through each image crop
     for idx in range(len(extracted.image_crops)):
         image_filename = f"{idx + 1}.png"
@@ -46,6 +51,7 @@ def describe_images(store: RecipeStore, publication_id: int, recipe_id: int) -> 
                 model=settings.describe.model,
                 response_model=ImageDescription,
                 prompt=prompt_template,
+                context=recipe_context,
                 image_path=image_path,
                 temperature=settings.describe.temperature,
                 max_retries=settings.describe.max_retries,

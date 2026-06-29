@@ -20,3 +20,10 @@ You must populate the following fields in the response schema:
    - Describe the scene, plating, and lighting.
    - Add stylistic keywords like "4k, high resolution, soft natural lighting, shallow depth of field, rustic Mexican styling".
    - DO NOT use generic quality buzzwords like "photorealistic" or "hyperrealistic". Use photographic descriptions like "85mm lens, f/1.8 aperture, shot on Fujifilm".
+
+## Recipe Context Guidance (Optional Input)
+You may be provided with recipe context in a system message within `<recipe_context>` tags:
+- **Use the metadata if present**: Use the recipe title and key ingredients/instructions to correctly identify and name the dish in the `suggested_prompt` (e.g. "A professional food photography shot of Tacos al Pastor...").
+- **Prioritize visual truth**: Keep in mind that the image is a crop, and may only capture a part of the recipe or a specific serving. Do not assume or hallucinate ingredients from the recipe text that are clearly not visible in the crop.
+- **Fall back if absent**: If no recipe context is provided, describe the dish purely based on visual inspection and guess the dish name as best as you can.
+

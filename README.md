@@ -204,10 +204,14 @@ After metadata changes, `tags.json` is stale until recipes are re-tagged (inheri
 ### Code formatting & linting
 
 ```bash
+make setup    # install deps + pre-commit/pre-push git hooks (once per clone)
 make format   # ruff format
 make lint     # ruff check --fix
+make check    # CI-equivalent lint + format check (no auto-fix)
 make clean    # remove caches
 ```
+
+Git hooks (installed by `make setup`) auto-run ruff on commit and `make check` + `make test` on push. If hooks are not installed, run `make check` manually before pushing.
 
 ### AI agent context
 

@@ -82,11 +82,16 @@ extract → rewrite → describe → tag → localize → substitute → ready
 ## Common commands
 
 ```bash
-make setup                                    # editable install + .env from .env.example
+make setup                                    # editable install + git hooks + .env from .env.example
 make test                                     # no API key needed
-make lint                                     # ruff check --fix
 make format                                   # ruff format
+make lint                                     # ruff check --fix
+make check                                    # CI-equivalent lint + format check (no auto-fix)
+```
 
+After code changes, run `make format && make lint && make check` before committing. `make setup` installs pre-commit and pre-push git hooks (ruff auto-fix on commit; `make check` + `make test` on push). Do not use `git commit --no-verify` or `git push --no-verify` unless fixing hook configuration.
+
+```bash
 mexipes ingest data/staging/                  # register new PDFs
 mexipes run --publication 1 --batch 10        # advance up to 10 recipes one stage
 mexipes run --recipe 1:1 --stage tag          # run specific stage for one recipe

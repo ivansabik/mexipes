@@ -2,8 +2,7 @@ import logging
 
 from mexipes.config import settings
 from mexipes.llm import call_llm, load_prompt
-from mexipes.schemas import ExtractedRecipe, RecipeStatus, RewrittenRecipe
-from mexipes.schemas import recipe_time
+from mexipes.schemas import ExtractedRecipe, RecipeStatus, RewrittenRecipe, recipe_time
 from mexipes.stages.infer_time import ensure_total_time
 from mexipes.storage import RecipeStore
 

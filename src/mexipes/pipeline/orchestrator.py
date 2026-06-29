@@ -11,9 +11,9 @@ from mexipes.schemas import (
     RecipeTagSet,
     RewrittenRecipe,
     SubstitutionsResult,
+    recipe_time,
 )
 from mexipes.schemas import tag_vocabularies as vocab
-from mexipes.schemas import recipe_time
 from mexipes.storage import RecipeStore
 
 logger = logging.getLogger(__name__)

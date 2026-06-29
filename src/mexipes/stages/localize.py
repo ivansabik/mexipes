@@ -2,8 +2,7 @@ import logging
 
 from mexipes.config import settings
 from mexipes.llm import call_llm, load_prompt
-from mexipes.schemas import LocalizedRecipe, RecipeStatus, RecipeTagSet, RewrittenRecipe
-from mexipes.schemas import recipe_time
+from mexipes.schemas import LocalizedRecipe, RecipeStatus, RecipeTagSet, RewrittenRecipe, recipe_time
 from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.schemas.tags import TagTranslations
 from mexipes.storage import RecipeStore

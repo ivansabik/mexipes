@@ -4,7 +4,7 @@ from mexipes.config import settings
 from mexipes.inherited_tags import protein_inheritance_allowed
 from mexipes.llm import call_llm, load_prompt
 from mexipes.region import resolve_region
-from mexipes.schemas import ExtractedRecipe, RecipeStatus, RecipeTagSet, RewrittenRecipe
+from mexipes.schemas import ExtractedRecipe, RecipeStatus, RecipeTagSet
 from mexipes.schemas import tag_vocabularies as vocab
 from mexipes.schemas.health_nutrition_tags import format_health_nutrition_prompt_section
 from mexipes.stages.infer_time import ensure_total_time

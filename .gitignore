@@ -28,3 +28,8 @@ htmlcov/
 # Temp for converting from initial parsing
 all_parsed/
 all_pdfs/
+
+# Export artifacts (regenerate with mexipes export)
+recipes.json
+recipes_facets.json
+recipes_similar.json

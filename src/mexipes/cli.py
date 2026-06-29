@@ -44,7 +44,7 @@ def run(
         None,
         "--stage",
         "-s",
-        help="Run a specific stage (extract, rewrite, describe, localize, tag, substitute)",
+        help="Run a specific stage (extract, rewrite, describe, tag, localize, substitute)",
     ),
     advance_all: bool = typer.Option(False, "--advance-all", help="Advance all pending recipes through the next stage"),
     batch_size: int = typer.Option(10, "--batch", help="Max number of recipes to process in this run"),

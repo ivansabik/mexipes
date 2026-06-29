@@ -1,0 +1,14 @@
+---
+description: Mexipes pipeline context
+alwaysApply: true
+---
+
+Read AGENTS.md at the repo root before making changes. It contains the pipeline
+stage order, status mapping, gotchas, repo map, and workflow guides.
+
+Quick reminders:
+- Pipeline: extract → rewrite → describe → tag → localize → substitute → ready
+- Tag runs on Spanish text BEFORE localize
+- `describe` stage outputs `images_described` (not `described`)
+- Use `pip install -e ".[dev]"` and `make test` after code changes
+- Never commit .env

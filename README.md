@@ -46,9 +46,9 @@ MEXIPES_REWRITE_MODEL="gemini/gemini-2.5-pro"
 MEXIPES_TAGGING_MODEL="gemini/gemini-2.5-flash"
 ```
 
-### Sample PDF corpus
+### Sample PDFs
 
-The repo includes **202 sample PDFs** in [`all_pdfs/`](all_pdfs/). They are not wired to the CLI automatically — copy files into `data/staging/` before ingest. For smoke tests, copy a subset to `data/sample_pdfs/` first, then stage one PDF at a time (see [Scoped runs](#scoped-runs) below).
+The repo does not bundle PDFs. Copy your own recipe publication PDFs into `data/staging/` (flat directory, no subfolders) before running `mexipes ingest`. For smoke tests, you can hold a small subset in `data/sample_pdfs/` first, then copy one file at a time into `data/staging/` (see [Scoped runs](#scoped-runs) below).
 
 ---
 
@@ -208,3 +208,7 @@ make format   # ruff format
 make lint     # ruff check --fix
 make clean    # remove caches
 ```
+
+### AI agent context
+
+AI agents: see [AGENTS.md](AGENTS.md) for repo orientation, pipeline invariants, and workflow guides.

@@ -62,6 +62,7 @@ def test_load_stage_output_logs_and_strict_raises(tmp_path, caplog):
     assert "Failed to load" in caplog.text
 
     import pytest
+    from pydantic import ValidationError
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         store.load_stage_output(1, 1, "extracted", ExtractedRecipe, strict=True)

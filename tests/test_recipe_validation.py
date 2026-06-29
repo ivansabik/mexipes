@@ -4,11 +4,16 @@ from mexipes.recipe_validation import (
     PLACEHOLDER_INGREDIENTS,
     box_text_overlap_fraction,
     crop_bounds_text,
+    is_editorial_extraction,
     is_empty_recipe_extraction,
     is_non_recipe_extraction,
     is_valid_box_2d,
+    matches_recipe_index,
     normalize_extracted_recipe_fields,
+    resolve_index_title,
 )
+from mexipes.schemas.publication import RecipeIndexEntry
+from mexipes.text_utils import normalize_dual_line_title
 
 # Text block rects (normalized 0-1000, [ymin, xmin, ymax, xmax]) from the real
 # "Atole de cacao" page (data/publications/1/recipes/8): a full-bleed background
@@ -111,3 +116,42 @@ def test_normalize_extracted_recipe_fields():
     assert title == "Mole de Olla"
     assert ingredients == "1/2 kilo de carne"
     assert instructions == "Cocer la carne."
+
+
+def test_editorial_extraction_drops_narrative_essay():
+    narrative = (
+        "Durante siglos las tortillas han sido el combustible de México. "
+        "No se conoce con exactitud la fecha de la primera elaboración de este pan, "
+        "pero las pruebas arqueológicas indican que se trata, sin duda, de un arte ancestral. "
+        "Primero se nixtamalizaban los granos secos de maíz."
+    )
+    assert is_editorial_extraction("granos secos de maíz\nagua con cal", narrative, None)
+
+
+def test_editorial_extraction_keeps_imperative_recipe():
+    instructions = (
+        "Mezcle la masa harina y 120 ml de agua con las manos hasta obtener una masa húmeda. "
+        "Añada más agua si fuera necesario. Cúbrala y resérvela en el frigorífico."
+    )
+    assert not is_editorial_extraction("450 g de masa harina", instructions, "PARA 6 PERSONAS")
+
+
+def test_normalize_dual_line_title_separator():
+    assert normalize_dual_line_title("Chilaquiles rojos / Tortilla con chile") == (
+        "Chilaquiles rojos - Tortilla con chile"
+    )
+    assert normalize_dual_line_title("Esquites - Granos de maíz cocidos") == (
+        "Esquites - Granos de maíz cocidos"
+    )
+
+
+def test_resolve_index_title_from_subtitle():
+    index = [RecipeIndexEntry(title="Esquites - Granos de maíz cocidos", page=40)]
+    assert resolve_index_title("Granos de Maíz Cocidos", 40, index) == (
+        "Esquites - Granos de maíz cocidos"
+    )
+
+
+def test_matches_recipe_index_fuzzy_subtitle():
+    index = [RecipeIndexEntry(title="Gorditas - Tortitas de harina rellenas", page=39)]
+    assert matches_recipe_index("Tortitas de Harina Rellenas", 39, index)

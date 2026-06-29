@@ -34,6 +34,13 @@ Eres un asistente experto en extracción de datos culinarios. Tu tarea es analiz
 
    Solo llena campos si son claramente un tema global de **TODA** la publicación. De lo contrario, déjalos null o como arreglos vacíos.
 
+6. **`recipe_index`**: Arreglo de entradas del índice o tabla de contenidos cuando esté visible en las páginas proporcionadas. Para cada **receta** indexada:
+   - **`title`**: Título canónico. Si el índice muestra nombre corto y subtítulo descriptivo en líneas separadas (p. ej. "ESQUITES" / "Granos de maíz cocidos"), combínalos como `"Esquites - Granos de maíz cocidos"`.
+   - **`page`**: Número de página PDF (base 1) donde aparece la receta (ingredientes/instrucciones).
+   - **`section`**: Encabezado de capítulo si es visible (p. ej. "STREET FOOD Y APERITIVOS"), o null.
+   - **Excluir**: introducciones, ensayos, prólogos, divisores de capítulo sin receta, páginas solo con foto.
+   - Si no hay índice visible en estas páginas, devuelve arreglo vacío `[]`. Un paso posterior puede escanear más páginas.
+
 ## Vocabulario controlado para `inherited_tags` (español):
 <!-- INHERITED_TAGS_TAXONOMY -->
 

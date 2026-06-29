@@ -1,9 +1,41 @@
 """Shared heuristics for detecting non-recipe extractions."""
 
-from mexipes.text_utils import normalize_extracted_text, normalize_title_es
+from __future__ import annotations
+
+import re
+
+from mexipes.schemas.publication import RecipeIndexEntry
+from mexipes.text_utils import fold_text, normalize_dual_line_title, normalize_extracted_text, normalize_title_es
 
 PLACEHOLDER_INGREDIENTS = "Ingredientes implícitos en la técnica / Ver instrucciones"
 MIN_SUBSTANTIVE_INSTRUCTION_LEN = 25
+INDEX_PAGE_TOLERANCE = 3
+
+# Spanish imperative cooking verbs commonly used in recipe instructions.
+COOKING_IMPERATIVE_PATTERN = re.compile(
+    r"\b("
+    r"mezcl\w+|pon\w+|calient\w+|añad\w+|cuez\w+|frí\w+|horné\w+|viert\w+|"
+    r"incorpor\w+|retir\w+|sirv\w+|precalient\w+|extiend\w+|form\w+|cort\w+|"
+    r"pel\w+|pic\w+|remov\w+|sal\w+|dej\w+|cuec\w+|sofrí\w+|tuest\w+|ase\w+|"
+    r"introduc\w+|tritur\w+|exprim\w+|escurr\w+|apíl\w+|cubr\w+|reserve\w+|"
+    r"repart\w+|adorn\w+|rocí\w+|espolvore\w+|horne\w+|cuele\w+|pase\w+"
+    r")\b",
+    re.IGNORECASE,
+)
+
+NARRATIVE_MARKERS = (
+    "durante siglos",
+    "se practicaba",
+    "consumía",
+    "arqueológic",
+    "sin duda",
+    "ancestral",
+    "se conoce con exactitud",
+    "nixtamalización",
+    "pruebas arqueológicas",
+    "primero se nixtamalizaban",
+    "la preparación de tortillas consumía",
+)
 
 
 def is_non_recipe_extraction(ingredients: str | None, instructions: str | None) -> bool:
@@ -26,6 +58,126 @@ def is_non_recipe_extraction(ingredients: str | None, instructions: str | None) 
 def is_empty_recipe_extraction(ingredients: str | None, instructions: str | None) -> bool:
     """Return True when either ingredients or instructions are missing after strip."""
     return not (ingredients or "").strip() or not (instructions or "").strip()
+
+
+def is_editorial_extraction(
+    ingredients: str | None,
+    instructions: str | None,
+    yields: str | None = None,
+) -> bool:
+    """Return True when extraction looks like editorial/intro prose, not a recipe.
+
+    Distinguishes narrative essays (historical context, no cooking steps) from
+    genuine recipes with imperative preparation instructions.
+    """
+    instr = (instructions or "").strip()
+    if not instr:
+        return True
+
+    imperative_count = len(COOKING_IMPERATIVE_PATTERN.findall(instr))
+    narrative_hits = sum(1 for marker in NARRATIVE_MARKERS if marker in fold_text(instr))
+
+    # Strong recipe signal: multiple imperative verbs and yields present
+    if imperative_count >= 2:
+        return False
+    if imperative_count >= 1 and (yields or "").strip():
+        return False
+
+    # Strong editorial signal: narrative markers without cooking imperatives
+    if narrative_hits >= 2 and imperative_count == 0:
+        return True
+    return narrative_hits >= 1 and imperative_count == 0 and not (yields or "").strip()
+
+
+def _title_fuzzy_match(extracted_folded: str, index_folded: str) -> bool:
+    if extracted_folded == index_folded:
+        return True
+    if extracted_folded in index_folded or index_folded in extracted_folded:
+        return True
+    if " - " in index_folded:
+        short_part, long_part = index_folded.split(" - ", 1)
+        if extracted_folded in (short_part, long_part):
+            return True
+        if short_part in extracted_folded or long_part in extracted_folded:
+            return True
+    return False
+
+
+def matches_recipe_index(
+    title: str,
+    page: int | None,
+    recipe_index: list[RecipeIndexEntry],
+    *,
+    page_tolerance: int = INDEX_PAGE_TOLERANCE,
+) -> bool:
+    """Return True when title/page fuzzy-match an entry in the recipe index."""
+    if not recipe_index:
+        return True
+    if page is None:
+        return False
+
+    extracted_folded = fold_text(title)
+    for entry in recipe_index:
+        if entry.page is None:
+            continue
+        if abs(entry.page - page) > page_tolerance:
+            continue
+        if _title_fuzzy_match(extracted_folded, fold_text(entry.title)):
+            return True
+    return False
+
+
+def resolve_index_title(
+    title: str,
+    page: int | None,
+    recipe_index: list[RecipeIndexEntry],
+    *,
+    page_tolerance: int = INDEX_PAGE_TOLERANCE,
+) -> str:
+    """Return canonical index title when a fuzzy match exists, else the given title."""
+    if not recipe_index or page is None:
+        return title
+
+    extracted_folded = fold_text(title)
+    for entry in recipe_index:
+        if entry.page is None:
+            continue
+        if abs(entry.page - page) > page_tolerance:
+            continue
+        if _title_fuzzy_match(extracted_folded, fold_text(entry.title)):
+            return entry.title
+    return title
+
+
+def filter_index_entries_for_chunk(
+    recipe_index: list[RecipeIndexEntry],
+    chunk_start: int,
+    chunk_end: int,
+    *,
+    overlap: int = 1,
+) -> list[RecipeIndexEntry]:
+    """Return index entries whose page falls within the chunk range (1-based, inclusive)."""
+    # Extend range by overlap pages on each side for boundary recipes
+    lo = max(1, chunk_start + 1 - overlap)
+    hi = chunk_end + overlap
+    return [e for e in recipe_index if e.page is not None and lo <= e.page <= hi]
+
+
+def format_index_context(entries: list[RecipeIndexEntry]) -> str:
+    """Format recipe index entries for injection into extraction prompt context."""
+    if not entries:
+        return ""
+    lines = [
+        "**RECIPE INDEX (authoritative)**:",
+        "- Only extract recipes that appear in this index for pages in this chunk.",
+        '- Use the index title exactly (including " - " separator when present).',
+        "- Skip any page content NOT listed in the index (intro essays, chapter openers).",
+        "- Index entries for this chunk:",
+    ]
+    for entry in entries:
+        section = f" [{entry.section}]" if entry.section else ""
+        lines.append(f"  - p{entry.page}: {entry.title}{section}")
+    return "\n".join(lines)
 
 
 def is_valid_box_2d(box_2d: list[int] | None) -> bool:
@@ -101,6 +253,7 @@ def normalize_extracted_recipe_fields(
     instructions: str,
 ) -> tuple[str, str, str]:
     """Apply deterministic cleanup to extracted recipe text fields."""
+    title = normalize_dual_line_title(title)
     return (
         normalize_title_es(title),
         normalize_extracted_text(ingredients),

@@ -98,3 +98,14 @@ def normalize_title_en(title: str) -> str:
 def fold_text(value: str) -> str:
     """Accent-insensitive lowercase fold for matching."""
     return unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower().strip()
+
+
+def normalize_dual_line_title(title: str) -> str:
+    """Normalize title separators from dual-line headers (e.g. 'A / B' -> 'A - B')."""
+    title = title.strip()
+    if " / " in title:
+        title = title.replace(" / ", " - ")
+    # Collapse repeated separators
+    while " -  - " in title:
+        title = title.replace(" -  - ", " - ")
+    return title

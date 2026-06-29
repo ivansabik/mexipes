@@ -4,7 +4,7 @@ from mexipes.schemas.health_nutrition_tags import (
     VALID_HEALTH_NUTRITION_EN,
     VALID_HEALTH_NUTRITION_ES,
 )
-from mexipes.schemas.publication import InheritedTags, PublicationMetadata, RegionalSection
+from mexipes.schemas.publication import InheritedTags, PublicationMetadata, RecipeIndexEntry, RegionalSection
 from mexipes.schemas.recipe import (
     ExtractedRecipe,
     ImageCrop,
@@ -24,6 +24,7 @@ __all__ = [
     "VALID_HEALTH_NUTRITION_ES",
     "InheritedTags",
     "PublicationMetadata",
+    "RecipeIndexEntry",
     "RegionalSection",
     "RecipeStatus",
     "ImageCrop",

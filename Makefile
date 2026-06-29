@@ -1,0 +1,27 @@
+.PHONY: help setup format lint clean
+
+help:
+	@echo "Available commands:"
+	@echo "  setup   - Install dependencies and create .env file"
+	@echo "  format  - Format Python source code using ruff"
+	@echo "  lint    - Run ruff linter and fix fixable errors"
+	@echo "  clean   - Remove temporary cache and directory files"
+
+setup:
+	pip install -e ".[dev]"
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "Created .env from .env.example. Please configure GEMINI_API_KEY in .env."; \
+	else \
+		echo ".env already exists."; \
+	fi
+
+format:
+	ruff format src/
+
+lint:
+	ruff check src/ --fix
+
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type d -name ".ruff_cache" -exec rm -rf {} +

@@ -1,0 +1,41 @@
+[project]
+name = "mexipes"
+version = "0.1.0"
+description = "Automated Mexican Recipe Content Pipeline"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "instructor>=1.3.0",
+    "litellm>=1.35.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "pymupdf>=1.24.0",
+    "python-dotenv>=1.0.0",
+    "typer>=0.12.0",
+    "jinja2>=3.1.0",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+mexipes = "mexipes.cli:app"
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501", "B008", "UP042"]

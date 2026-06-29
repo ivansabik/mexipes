@@ -1,6 +1,8 @@
 import contextlib
+import fcntl
 import json
 import logging
+import os
 from pathlib import Path
 from typing import TypeVar
 
@@ -14,6 +16,7 @@ T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 _STATUS_INDEX_FILENAME = "_index.json"
+_NEXT_RECIPE_ID_FILENAME = "_next_id.txt"
 
 
 class RecipeStore:
@@ -201,16 +204,45 @@ class RecipeStore:
                 results.append((publication_id, recipe_id))
         return results
 
-    def get_next_recipe_id(self, publication_id: int) -> int:
+    def _max_recipe_id(self, publication_id: int) -> int:
         recipes_dir = self.get_publication_dir(publication_id) / "recipes"
         if not recipes_dir.exists():
-            return 1
+            return 0
         max_id = 0
         for entry in recipes_dir.iterdir():
             if entry.is_dir() and entry.name.isdigit():
                 with contextlib.suppress(ValueError):
                     max_id = max(max_id, int(entry.name))
-        return max_id + 1
+        return max_id
+
+    def get_next_recipe_id(self, publication_id: int) -> int:
+        """Allocate the next recipe ID atomically using a locked counter file."""
+        pub_dir = self.get_publication_dir(publication_id)
+        (pub_dir / "recipes").mkdir(parents=True, exist_ok=True)
+        counter_path = pub_dir / _NEXT_RECIPE_ID_FILENAME
+
+        with open(counter_path, "a+", encoding="utf-8") as counter_file:
+            fcntl.flock(counter_file.fileno(), fcntl.LOCK_EX)
+            try:
+                counter_file.seek(0)
+                raw = counter_file.read().strip()
+                scanned_next = max(self._max_recipe_id(publication_id) + 1, 1)
+                if raw:
+                    try:
+                        next_id = max(int(raw), scanned_next)
+                    except ValueError:
+                        next_id = scanned_next
+                else:
+                    next_id = scanned_next
+
+                counter_file.seek(0)
+                counter_file.truncate()
+                counter_file.write(str(next_id + 1))
+                counter_file.flush()
+                os.fsync(counter_file.fileno())
+                return next_id
+            finally:
+                fcntl.flock(counter_file.fileno(), fcntl.LOCK_UN)
 
     def get_next_publication_id(self) -> int:
         publications_dir = self.data_dir / "publications"

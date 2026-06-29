@@ -47,6 +47,27 @@ def test_rebuild_status_index_from_status_files(tmp_path):
     assert index_path.exists()
 
 
+def test_get_next_recipe_id_allocates_sequentially(tmp_path):
+    store = RecipeStore(tmp_path)
+    publication_id = 4
+
+    assert store.get_next_recipe_id(publication_id) == 1
+    store.get_recipe_dir(publication_id, 1)
+    assert store.get_next_recipe_id(publication_id) == 2
+    assert store.get_next_recipe_id(publication_id) == 3
+
+    counter_path = store.get_publication_dir(publication_id) / "_next_id.txt"
+    assert counter_path.read_text(encoding="utf-8") == "4"
+
+
+def test_get_next_recipe_id_respects_existing_recipe_dirs(tmp_path):
+    store = RecipeStore(tmp_path)
+    publication_id = 5
+    store.get_recipe_dir(publication_id, 7)
+
+    assert store.get_next_recipe_id(publication_id) == 8
+
+
 def test_load_stage_output_logs_and_strict_raises(tmp_path, caplog):
     import logging
 

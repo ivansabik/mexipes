@@ -83,8 +83,8 @@ def _apply_leftover_translations(data: dict, translations: dict[str, str]) -> di
 def localize_tag_set(tags: RecipeTagSet) -> RecipeTagSet:
     """Translate a Spanish canonical tag set to English.
 
-    Closed-vocabulary fields (including ``health_nutrition``) are mapped
-    deterministically. Open-field values not in the vocabulary are translated
+    Closed-vocabulary fields are mapped deterministically. Open-field values not
+    in the vocabulary are translated
     via a small LLM call; skipped when there are no leftovers.
     """
     data = tags.model_dump()

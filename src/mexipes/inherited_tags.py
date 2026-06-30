@@ -20,10 +20,6 @@ _REGIONAL_TITLE_PREFIXES = (
     r"delicias de ",
 )
 
-_TRADICIONAL_REGIONAL = "Tradicional Regional"
-_MAX_HEALTH_NUTRITION_TAGS = 3
-_VEGAN_DIETARY = frozenset({"Vegano", "Vegetariano"})
-
 # Trim geographic remainder at volume/edition markers.
 _REMAINDER_TRIM = re.compile(r"[.;]|(?:\s|^)vol(?:\.|\s|\d)|(?:\s|^)m[eé]xico(?:\s|$)", re.IGNORECASE)
 
@@ -51,7 +47,6 @@ def _match_region_in_text(text: str) -> str | None:
         region_norm = _normalize_for_match(region)
         if normalized.startswith(region_norm):
             return region
-        # City+state patterns: "tacotalpa, tabasco" — match state anywhere after prefix.
         if region_norm in normalized:
             return region
     return None
@@ -78,20 +73,8 @@ def _title_claims_region(title: str | None) -> bool:
     return _regional_remainder(title) is not None
 
 
-def _title_implies_traditional_regional(title: str | None) -> bool:
-    """Return True when the title explicitly describes regional/traditional cuisine."""
-    if not title:
-        return False
-    normalized = _normalize_for_match(title)
-    return "regionales" in normalized or "regional" in normalized or "tradicional" in normalized
-
-
 def infer_region_from_title(title: str | None) -> str | None:
-    """Infer canonical inherited region from a regional cookbook title.
-
-    Returns the longest matching known region (state) from the geographic phrase,
-    e.g. "platillos regionales de Tacotalpa, Tabasco" -> "Tabasco".
-    """
+    """Infer canonical inherited region from a regional cookbook title."""
     remainder = _regional_remainder(title)
     if not remainder:
         return None
@@ -105,15 +88,6 @@ def region_claim_supported(metadata: PublicationMetadata) -> bool:
     return _title_claims_region(metadata.document_title)
 
 
-def protein_inheritance_allowed(inherited: InheritedTags) -> bool:
-    """Return True when publication-level protein tags may propagate to recipes."""
-    if not inherited.protein:
-        return False
-    if len(inherited.protein) == 1:
-        return True
-    return bool(set(inherited.dietary) & _VEGAN_DIETARY)
-
-
 def sanitize_inherited_tags(metadata: PublicationMetadata) -> InheritedTags:
     """Clear unsupported or over-broad inherited tags before they propagate to recipes."""
     inherited = metadata.inherited_tags.model_copy(deep=True)
@@ -121,21 +95,7 @@ def sanitize_inherited_tags(metadata: PublicationMetadata) -> InheritedTags:
     if not region_claim_supported(metadata):
         if inherited.region:
             inherited.region = None
-        if _TRADICIONAL_REGIONAL in inherited.cuisine_style:
-            inherited.cuisine_style = [style for style in inherited.cuisine_style if style != _TRADICIONAL_REGIONAL]
-    else:
-        if not inherited.region:
-            inherited.region = infer_region_from_title(metadata.document_title)
-        if (
-            _title_implies_traditional_regional(metadata.document_title)
-            and _TRADICIONAL_REGIONAL not in inherited.cuisine_style
-        ):
-            inherited.cuisine_style = [*inherited.cuisine_style, _TRADICIONAL_REGIONAL]
-
-    if not protein_inheritance_allowed(inherited):
-        inherited.protein = []
-
-    if len(inherited.health_nutrition) > _MAX_HEALTH_NUTRITION_TAGS:
-        inherited.health_nutrition = inherited.health_nutrition[:_MAX_HEALTH_NUTRITION_TAGS]
+    elif not inherited.region:
+        inherited.region = infer_region_from_title(metadata.document_title)
 
     return inherited

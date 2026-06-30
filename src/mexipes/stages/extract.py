@@ -36,7 +36,6 @@ from mexipes.schemas import (
     recipe_time,
 )
 from mexipes.schemas import tag_vocabularies as vocab
-from mexipes.schemas.health_nutrition_tags import format_health_nutrition_prompt_section
 from mexipes.storage import RecipeStore
 from mexipes.text_utils import fold_text
 
@@ -387,10 +386,6 @@ def extract_publication_metadata(store: RecipeStore, publication_id: int) -> Pub
     prompt_template = prompt_template.replace(
         "<!-- INHERITED_TAGS_TAXONOMY -->",
         vocab.format_inherited_tags_prompt_section(),
-    )
-    prompt_template = prompt_template.replace(
-        "<!-- HEALTH_NUTRITION_TAXONOMY -->",
-        format_health_nutrition_prompt_section(),
     )
     prompt = f"{prompt_template}\n\nFULL TEXT FOR REGIONAL SECTIONS EXTRACTION:\n{full_text}"
 

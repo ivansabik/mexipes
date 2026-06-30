@@ -7,20 +7,15 @@ authored Spanish-first. Each term is a ``(slug, es, en)`` tuple:
 * ``es``   — canonical Spanish label emitted by the tagging stage.
 * ``en``   — canonical English label produced by the localize stage via a
   deterministic lookup (no extra LLM call).
-
-The ``health_nutrition`` field uses the bilingual vocabulary in
-``health_nutrition_tags.py`` (registered in ``VOCABULARIES`` like other fields).
 """
 
 from __future__ import annotations
-
-from mexipes.schemas.health_nutrition_tags import HEALTH_NUTRITION
 
 TagTerm = tuple[str, str, str]  # (slug, es, en)
 
 
 # ---------------------------------------------------------------------------
-# Existing taxonomy fields (now Spanish-first)
+# Taxonomy fields (Spanish-first)
 # ---------------------------------------------------------------------------
 
 COURSE: list[TagTerm] = [
@@ -40,7 +35,6 @@ MEAL_TYPE: list[TagTerm] = [
     ("lunch", "Comida", "Lunch"),
     ("dinner", "Cena", "Dinner"),
     ("snack", "Botana", "Snack"),
-    ("late-night", "Trasnoche", "Late Night"),
 ]
 
 PROTEIN: list[TagTerm] = [
@@ -57,10 +51,7 @@ PROTEIN: list[TagTerm] = [
 ]
 
 # Specific finfish species the tagger sometimes emits where the taxonomy only
-# carries the coarse ``Pescado`` (Fish) bucket. Mapped deterministically so a
-# required scalar like ``primary_protein`` never lands on an off-vocabulary value
-# (which would be a hard DQ error). Shellfish/molluscs are intentionally omitted
-# since they have no clean canonical bucket here.
+# carries the coarse ``Pescado`` (Fish) bucket.
 PROTEIN_ALIASES: dict[str, str] = {
     "Atún": "Pescado",
     "Tuna": "Pescado",
@@ -81,12 +72,7 @@ PROTEIN_ALIASES: dict[str, str] = {
     "Cochino": "Cerdo",
 }
 
-# Closed scalar fields where an invalid value should be dropped (set to None)
-# rather than kept and leaking untranslated. Required scalars like
-# ``primary_protein`` are coerced via aliases instead.
-OPTIONAL_CLOSED_SCALAR_FIELDS: frozenset[str] = frozenset(
-    {"spiciness", "difficulty", "budget", "serving_size", "kid_friendly"}
-)
+OPTIONAL_CLOSED_SCALAR_FIELDS: frozenset[str] = frozenset({"spiciness", "difficulty", "budget", "meal_type"})
 
 SPICINESS: list[TagTerm] = [
     ("mild", "Suave", "Mild"),
@@ -135,28 +121,10 @@ CHILE_TYPE: list[TagTerm] = [
     ("guero", "Güero", "Guero"),
 ]
 
-CUISINE_STYLE: list[TagTerm] = [
-    ("street-food", "Comida Callejera", "Street Food"),
-    ("home-style", "Casera", "Home-Style"),
-    ("regional-traditional", "Tradicional Regional", "Regional Traditional"),
-    ("holiday-festive", "Festivo", "Holiday/Festive"),
-    ("modern-fusion", "Fusión Moderna", "Modern Fusion"),
-]
-
 DIFFICULTY: list[TagTerm] = [
     ("easy", "Fácil", "Easy"),
     ("intermediate", "Intermedio", "Intermediate"),
     ("advanced", "Avanzado", "Advanced"),
-]
-
-SEASON: list[TagTerm] = [
-    ("year-round", "Todo el Año", "Year-Round"),
-    ("summer", "Verano", "Summer"),
-    ("winter", "Invierno", "Winter"),
-    ("spring", "Primavera", "Spring"),
-    ("autumn", "Otoño", "Autumn"),
-    ("holiday", "Festividad", "Holiday"),
-    ("lent", "Cuaresma", "Lent/Cuaresma"),
 ]
 
 KEY_INGREDIENT: list[TagTerm] = [
@@ -188,163 +156,34 @@ BUDGET: list[TagTerm] = [
     ("premium", "Premium", "Premium"),
 ]
 
-COOKING_EQUIPMENT: list[TagTerm] = [
-    ("molcajete", "Molcajete", "Molcajete"),
-    ("comal", "Comal", "Comal"),
-    ("blender", "Licuadora", "Blender"),
-    ("dutch-oven", "Olla de Hierro", "Dutch Oven"),
-    ("cazuela", "Cazuela", "Cazuela"),
-    ("tortilla-press", "Prensa para Tortillas", "Tortilla Press"),
-    ("slow-cooker", "Olla de Cocción Lenta", "Slow Cooker"),
-    ("steamer", "Vaporera", "Steamer"),
-    ("pressure-cooker", "Olla Exprés", "Pressure Cooker"),
-    ("griddle", "Plancha", "Griddle"),
-    ("oven", "Horno", "Oven"),
-    ("metate", "Metate", "Metate"),
-]
-
-
-# ---------------------------------------------------------------------------
-# New recommendation-focused fields
-# ---------------------------------------------------------------------------
-
 DISH_FORMAT: list[TagTerm] = [
-    # Core antojitos & handhelds
     ("tacos", "Tacos", "Tacos"),
     ("tostadas", "Tostadas", "Tostadas"),
-    ("huaraches", "Huaraches", "Huaraches"),
     ("quesadillas", "Quesadillas", "Quesadillas"),
     ("enchiladas", "Enchiladas", "Enchiladas"),
     ("tamales", "Tamales", "Tamales"),
-    ("antojitos", "Antojitos", "Antojitos"),
     ("empanadas", "Empanadas", "Empanadas"),
     ("tortas", "Tortas", "Tortas"),
-    ("burritos", "Burritos", "Burritos"),
-    ("nachos", "Nachos", "Nachos"),
-    # Sauces & condiments (standalone)
+    ("antojitos", "Antojitos", "Antojitos"),
     ("salsa", "Salsa", "Salsa"),
     ("guacamole", "Guacamole", "Guacamole"),
     ("mole", "Mole", "Mole"),
     ("pipian", "Pipián", "Pipian"),
     ("adobo", "Adobo", "Adobo"),
-    # Soups & broths
     ("sopa", "Sopa", "Soup"),
     ("pozole", "Pozole", "Pozole"),
     ("menudo", "Menudo", "Menudo"),
     ("caldo", "Caldo", "Broth"),
-    ("crema", "Crema", "Cream Soup"),
-    # Proteins & braises
     ("birria", "Birria", "Birria"),
     ("barbacoa", "Barbacoa", "Barbacoa"),
     ("carnitas", "Carnitas", "Carnitas"),
     ("cochinita-pibil", "Cochinita Pibil", "Cochinita Pibil"),
-    ("mixiote", "Mixiote", "Mixiote"),
-    ("chilorio", "Chilorio", "Chilorio"),
-    ("tinga", "Tinga", "Tinga"),
-    ("picadillo", "Picadillo", "Picadillo"),
-    ("albondigas", "Albóndigas", "Meatballs"),
-    ("cabrito", "Cabrito", "Roast Goat"),
-    ("machaca", "Machaca", "Machaca"),
-    ("discada", "Discada", "Discada"),
-    # Seafood
     ("ceviche", "Ceviche", "Ceviche"),
-    ("aguachile", "Aguachile", "Aguachile"),
-    # Stuffed & egg
-    ("chiles-rellenos", "Chiles Rellenos", "Stuffed Chiles"),
     ("chilaquiles", "Chilaquiles", "Chilaquiles"),
-    ("huevos", "Huevos", "Eggs"),
-    # Sides & staples
-    ("arroz", "Arroz", "Rice"),
-    ("frijoles", "Frijoles", "Beans"),
-    ("ensalada", "Ensalada", "Salad"),
-    ("tortillas", "Tortillas", "Tortillas"),
-    # Sweet & baked
+    ("chiles-rellenos", "Chiles Rellenos", "Stuffed Chiles"),
     ("postre", "Postre", "Dessert"),
-    ("pan-dulce", "Pan Dulce", "Sweet Bread"),
-    # Drinks
     ("bebida", "Bebida", "Drink"),
-    # Regional specialties
-    ("papadzul", "Papadzul", "Papadzul"),
-    ("chirmol", "Chirmol", "Chirmol"),
-    ("platano", "Plátano", "Plantain Dish"),
-    ("volteado", "Volteado", "Upside-Down Cake"),
     ("other", "Otro", "Other"),
-]
-
-PREPARATION_STYLE: list[TagTerm] = [
-    ("en-salsa", "En Salsa", "In Sauce"),
-    ("relleno", "Relleno", "Stuffed"),
-    ("en-mole", "En Mole", "In Mole"),
-    ("en-pipian", "En Pipián", "In Pipian"),
-    ("en-adobo", "En Adobo", "In Adobo"),
-    ("a-la-mexicana", "A la Mexicana", "Mexican-Style"),
-    ("empanizado", "Empanizado", "Breaded"),
-    ("capeado", "Capeado", "Battered"),
-    ("en-escabeche", "En Escabeche", "Pickled"),
-    ("other", "Otro", "Other"),
-]
-
-FLAVOR_PROFILE: list[TagTerm] = [
-    ("smoky", "Ahumado", "Smoky"),
-    ("earthy", "Terroso", "Earthy"),
-    ("rich", "Rico", "Rich"),
-    ("bright", "Brillante", "Bright"),
-    ("tangy", "Ácido", "Tangy"),
-    ("spicy", "Picante", "Spicy"),
-    ("sweet", "Dulce", "Sweet"),
-    ("savory", "Salado", "Savory"),
-    ("fresh", "Fresco", "Fresh"),
-    ("herbal", "Herbal", "Herbal"),
-    ("nutty", "A Nuez", "Nutty"),
-    ("smoky-chile", "Ahumado-Chile", "Smoky-Chile"),
-    ("citrus", "Cítrico", "Citrus"),
-    ("umami", "Umami", "Umami"),
-]
-
-TEXTURE: list[TagTerm] = [
-    ("crispy", "Crujiente", "Crispy"),
-    ("creamy", "Cremoso", "Creamy"),
-    ("brothy", "Caldoso", "Brothy"),
-    ("chewy", "Masticable", "Chewy"),
-    ("tender", "Tierno", "Tender"),
-    ("crunchy", "Crocante", "Crunchy"),
-    ("silky", "Sedoso", "Silky"),
-    ("chunky", "En Trozos", "Chunky"),
-    ("flaky", "Hojaldrado", "Flaky"),
-]
-
-OCCASION: list[TagTerm] = [
-    ("weeknight", "Entre Semana", "Weeknight"),
-    ("weekend-project", "Proyecto de Fin de Semana", "Weekend Project"),
-    ("holiday", "Festividad", "Holiday"),
-    ("lent", "Cuaresma", "Lent"),
-    ("party", "Fiesta", "Party"),
-    ("meal-prep", "Preparación de Comidas", "Meal Prep"),
-    ("date-night", "Cita Romántica", "Date Night"),
-    ("comfort-food", "Comida Reconfortante", "Comfort Food"),
-    ("street-food", "Comida Callejera", "Street Food"),
-    ("brunch", "Brunch", "Brunch"),
-    ("game-day", "Día de Partido", "Game Day"),
-]
-
-PAIRS_WELL_WITH: list[TagTerm] = [
-    ("side-dish", "Guarnición", "Side Dish"),
-    ("soup", "Sopa", "Soup"),
-    ("salad", "Ensalada", "Salad"),
-    ("rice", "Arroz", "Rice"),
-    ("beans", "Frijoles", "Beans"),
-    ("tortillas", "Tortillas", "Tortillas"),
-    ("salsa", "Salsa", "Salsa"),
-    ("beverage", "Bebida", "Beverage"),
-    ("dessert", "Postre", "Dessert"),
-    ("appetizer", "Entrada", "Appetizer"),
-]
-
-SERVING_SIZE: list[TagTerm] = [
-    ("1-2", "1-2", "1-2"),
-    ("3-4", "3-4", "3-4"),
-    ("5-8", "5-8", "5-8"),
-    ("9-plus", "9+", "9+"),
 ]
 
 ALLERGENS: list[TagTerm] = [
@@ -360,20 +199,6 @@ ALLERGENS: list[TagTerm] = [
     ("none", "Ninguno", "None"),
 ]
 
-MAKE_AHEAD: list[TagTerm] = [
-    ("same-day", "Mismo Día", "Same Day"),
-    ("1-day-ahead", "Un Día Antes", "1 Day Ahead"),
-    ("freezer-friendly", "Apto para Congelar", "Freezer Friendly"),
-    ("leftover-friendly", "Bueno como Sobras", "Leftover Friendly"),
-]
-
-KID_FRIENDLY: list[TagTerm] = [
-    ("kid-mild", "Suave", "Mild"),
-    ("kid-moderate", "Moderado", "Moderate"),
-    ("kid-not", "No apto para niños", "Not Kid-Friendly"),
-]
-
-# Mexican regions of origin (es == en for proper nouns).
 REGION: list[TagTerm] = [
     (slug, name, name)
     for slug, name in [
@@ -412,42 +237,71 @@ REGION: list[TagTerm] = [
     ]
 ]
 
+# Legacy v2 dish_format slugs mapped to v3 canonical labels for sanitization.
+DISH_FORMAT_LEGACY_MAP: dict[str, str] = {
+    "Huaraches": "Antojitos",
+    "Burritos": "Antojitos",
+    "Nachos": "Antojitos",
+    "Crema": "Sopa",
+    "Mixiote": "Otro",
+    "Chilorio": "Otro",
+    "Tinga": "Otro",
+    "Picadillo": "Otro",
+    "Albóndigas": "Otro",
+    "Cabrito": "Otro",
+    "Machaca": "Otro",
+    "Discada": "Otro",
+    "Aguachile": "Ceviche",
+    "Huevos": "Otro",
+    "Arroz": "Otro",
+    "Frijoles": "Otro",
+    "Ensalada": "Otro",
+    "Tortillas": "Otro",
+    "Pan Dulce": "Postre",
+    "Papadzul": "Otro",
+    "Chirmol": "Salsa",
+    "Plátano": "Otro",
+    "Volteado": "Postre",
+}
+
+# When legacy meal_type lists contain multiple values, prefer the most specific.
+MEAL_TYPE_LEGACY_PRIORITY: tuple[str, ...] = (
+    "Botana",
+    "Desayuno",
+    "Brunch",
+    "Comida",
+    "Cena",
+)
+
+# Maximum list lengths enforced during sanitization (matches RecipeTagSet).
+LIST_FIELD_MAX_LENGTHS: dict[str, int] = {
+    "key_ingredient": 3,
+    "chile_type": 3,
+    "cooking_method": 2,
+    "dish_format": 2,
+}
+
 
 # ---------------------------------------------------------------------------
 # Registry + derived lookups
 # ---------------------------------------------------------------------------
 
-# Maps each tag field name to its vocabulary. Order is used for prompt rendering.
 VOCABULARIES: dict[str, list[TagTerm]] = {
     "course": COURSE,
     "meal_type": MEAL_TYPE,
     "region": REGION,
-    "protein": PROTEIN,
     "primary_protein": PROTEIN,
     "spiciness": SPICINESS,
     "dietary": DIETARY,
     "cooking_method": COOKING_METHOD,
     "chile_type": CHILE_TYPE,
-    "cuisine_style": CUISINE_STYLE,
     "difficulty": DIFFICULTY,
-    "season": SEASON,
     "key_ingredient": KEY_INGREDIENT,
     "budget": BUDGET,
-    "cooking_equipment": COOKING_EQUIPMENT,
     "dish_format": DISH_FORMAT,
-    "preparation_style": PREPARATION_STYLE,
-    "flavor_profile": FLAVOR_PROFILE,
-    "texture": TEXTURE,
-    "occasion": OCCASION,
-    "pairs_well_with": PAIRS_WELL_WITH,
-    "serving_size": SERVING_SIZE,
     "allergens": ALLERGENS,
-    "make_ahead": MAKE_AHEAD,
-    "kid_friendly": KID_FRIENDLY,
-    "health_nutrition": HEALTH_NUTRITION,
 }
 
-# Fields that hold a single scalar value (not a list).
 SCALAR_FIELDS: frozenset[str] = frozenset(
     {
         "region",
@@ -455,13 +309,11 @@ SCALAR_FIELDS: frozenset[str] = frozenset(
         "spiciness",
         "difficulty",
         "budget",
-        "serving_size",
-        "kid_friendly",
+        "meal_type",
     }
 )
 
-# Fields that are open-ended: validate as warnings, allow unknown values.
-OPEN_FIELDS: frozenset[str] = frozenset({"region", "chile_type", "key_ingredient", "cooking_equipment"})
+OPEN_FIELDS: frozenset[str] = frozenset({"region", "chile_type"})
 
 
 def es_values(field: str) -> set[str]:
@@ -508,11 +360,7 @@ def localize_list(field: str, values_es: list[str]) -> list[str]:
 
 
 def normalize_value_to_es(field: str, value: str | None) -> str | None:
-    """Coerce a value that may be English into the canonical Spanish label.
-
-    Used when merging publication-level inherited tags (which may have been
-    produced in English) into a Spanish recipe tag set.
-    """
+    """Coerce a value that may be English into the canonical Spanish label."""
     if value is None:
         return None
     if value in es_values(field):
@@ -530,21 +378,43 @@ def normalize_list_to_es(field: str, values: list[str]) -> list[str]:
     return out
 
 
+def _coerce_meal_type_scalar(value: object) -> str | None:
+    """Normalize meal_type to a single canonical Spanish label (v3 scalar)."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        candidates = [value]
+    elif isinstance(value, list):
+        candidates = [v for v in value if isinstance(v, str)]
+    else:
+        return None
+
+    es_known = es_values("meal_type")
+    reverse = en_to_es("meal_type")
+    canonicals: list[str] = []
+    for raw in candidates:
+        canonical = raw if raw in es_known else reverse.get(raw, raw)
+        if canonical in es_known and canonical not in canonicals:
+            canonicals.append(canonical)
+    if not canonicals:
+        return None
+    if len(canonicals) == 1:
+        return canonicals[0]
+    for preferred in MEAL_TYPE_LEGACY_PRIORITY:
+        if preferred in canonicals:
+            return preferred
+    return canonicals[0]
+
+
+def _cap_list(field: str, values: list[str]) -> list[str]:
+    max_len = LIST_FIELD_MAX_LENGTHS.get(field)
+    if max_len is None:
+        return values
+    return values[:max_len]
+
+
 def sanitize_recipe_tags_data(data: dict) -> dict:
-    """Drop out-of-vocabulary values from closed-vocabulary list fields.
-
-    Safety net applied after LLM tagging. The model occasionally places a value
-    that is valid for a *different* field (e.g. ``Botana`` is a ``meal_type``, not
-    a ``course`` or ``occasion``) or otherwise off-vocabulary. Such values would
-    survive into localization and leak **untranslated** into the English tag set,
-    so each value is first coerced to its canonical Spanish label and then dropped
-    if it is still not in the field's vocabulary (order-preserving, de-duplicated).
-
-    Scalar fields, open fields (``region``, ``chile_type``, ``key_ingredient``,
-    ``cooking_equipment``), ``health_nutrition`` (English canonical), and any
-    non-vocabulary field are left untouched except for ``primary_protein`` (coerced
-    via aliases) and optional closed scalars (invalid values dropped to ``None``).
-    """
+    """Drop out-of-vocabulary values and enforce v3 field constraints."""
     out = dict(data)
     for field in VOCABULARIES:
         if field in SCALAR_FIELDS or field in OPEN_FIELDS:
@@ -557,26 +427,32 @@ def sanitize_recipe_tags_data(data: dict) -> dict:
         cleaned: list[str] = []
         for value in values:
             canonical = value if value in es_known else reverse.get(value, value)
-            if field == "protein":
-                canonical = PROTEIN_ALIASES.get(canonical, canonical)
+            if field == "dish_format":
+                canonical = DISH_FORMAT_LEGACY_MAP.get(canonical, canonical)
             if canonical in es_known and canonical not in cleaned:
                 cleaned.append(canonical)
-        out[field] = cleaned
-    # Coerce the required scalar `primary_protein` onto its canonical bucket so a
-    # synonym or species (e.g. 'Atún', 'Puerco') never produces an invalid-enum DQ error.
+        out[field] = _cap_list(field, cleaned)
+
     primary = data.get("primary_protein")
     if isinstance(primary, str):
         canonical = normalize_value_to_es("primary_protein", primary)
         canonical = PROTEIN_ALIASES.get(canonical or primary, canonical or primary)
         out["primary_protein"] = canonical
-    # Drop invalid values from optional closed scalars (e.g. spiciness 'Medio'
-    # placed in kid_friendly).
+
     for field in OPTIONAL_CLOSED_SCALAR_FIELDS:
         value = data.get(field)
         if not isinstance(value, str):
             continue
         canonical = normalize_value_to_es(field, value)
         out[field] = canonical if canonical in es_values(field) else None
+
+    out["meal_type"] = _coerce_meal_type_scalar(data.get("meal_type"))
+
+    # Open chile_type: keep unknowns but cap length.
+    chiles = data.get("chile_type")
+    if isinstance(chiles, list):
+        out["chile_type"] = _cap_list("chile_type", [v for v in chiles if isinstance(v, str)])
+
     return out
 
 
@@ -616,40 +492,25 @@ def _fallback_slug(value: str) -> str:
     return slug.strip("-")
 
 
-# Fields surfaced as facets and used for tag-overlap similarity (slug-based).
 FACET_FIELDS: tuple[str, ...] = (
     "course",
     "meal_type",
     "region",
-    "protein",
     "primary_protein",
     "dietary",
     "cooking_method",
     "chile_type",
-    "cuisine_style",
+    "spiciness",
     "difficulty",
-    "season",
     "key_ingredient",
     "budget",
     "dish_format",
-    "preparation_style",
-    "flavor_profile",
-    "texture",
-    "occasion",
-    "pairs_well_with",
-    "serving_size",
     "allergens",
-    "make_ahead",
-    "kid_friendly",
 )
 
 
 def to_bilingual(tag_data: dict, tag_data_en: dict | None = None) -> dict:
-    """Build a ``{slug, es, en}`` export view from a Spanish tag-set ``model_dump``.
-
-    List fields become lists of entries; scalar fields become a single entry (or
-    ``None``). Non-vocabulary fields pass through.
-    """
+    """Build a ``{slug, es, en}`` export view from a Spanish tag-set ``model_dump``."""
     out: dict = {}
     tag_data_en = tag_data_en or {}
     for field, value in tag_data.items():
@@ -689,47 +550,29 @@ def slug_map_for(tag_data: dict) -> dict[str, list[str]]:
     return result
 
 
-# Fields on ``InheritedTags`` (publication-level theme tags from title/first pages).
 INHERITED_TAG_FIELDS: tuple[str, ...] = (
     "region",
-    "season",
     "dietary",
     "budget",
-    "health_nutrition",
-    "cuisine_style",
-    "protein",
 )
 
-# Theme fields merged into recipe tags after the tag LLM (``region`` uses resolve_region instead).
 INHERITABLE_MERGE_FIELDS: tuple[str, ...] = (
-    "season",
     "dietary",
     "budget",
-    "health_nutrition",
-    "cuisine_style",
-    "protein",
 )
 
 
 def normalize_inherited_tags_data(data: dict) -> dict:
-    """Coerce publication-level inherited tag values to Spanish canonical labels.
-
-    Unknown values pass through.
-    """
+    """Coerce publication-level inherited tag values to Spanish canonical labels."""
     out = dict(data)
     for field, value in data.items():
         if field not in VOCABULARIES:
             continue
         if field in SCALAR_FIELDS:
             if isinstance(value, str):
-                normalized_scalar = normalize_value_to_es(field, value)
-                if field == "primary_protein":
-                    normalized_scalar = PROTEIN_ALIASES.get(normalized_scalar, normalized_scalar)
-                out[field] = normalized_scalar
+                out[field] = normalize_value_to_es(field, value)
         elif isinstance(value, list):
             normalized = normalize_list_to_es(field, value)
-            if field == "protein":
-                normalized = [PROTEIN_ALIASES.get(v, v) for v in normalized]
             deduped: list[str] = []
             for item in normalized:
                 if item not in deduped:
@@ -743,7 +586,6 @@ def format_inherited_tags_prompt_section() -> str:
     lines = [
         "Usa **exactamente** estos valores canónicos en **español** para `inherited_tags`.",
         "Deja los campos vacíos o null si no hay un tema global claro para toda la publicación.",
-        "`health_nutrition` también usa valores canónicos en **español** (ver vocabulario abajo).",
         "",
     ]
 
@@ -757,19 +599,8 @@ def format_inherited_tags_prompt_section() -> str:
         "región mexicana",
         "Solo si TODAS las recetas son de esa región y el título/subtítulo lo afirma. NO uses autor, editor ni institución publicadora.",
     )
-    render("season", "temporada o evento", "p. ej. bolis/paletas/nieves → `Verano`; no uses `Todo el Año` por defecto.")
     render("dietary", "dietético", "Si es vegano: `Vegano`, `Vegetariano`, `Sin Lácteos`.")
     render("budget", "presupuesto", "Elige EXACTAMENTE una si aplica globalmente.")
-    render(
-        "cuisine_style",
-        "estilo de cocina",
-        "`Tradicional Regional` solo si el libro afirma explícitamente cocina regional/tradicional; no por nombre de estado en la editorial.",
-    )
-    render(
-        "protein",
-        "proteínas",
-        "Solo UNA proteína si el libro es exclusivamente de ella (p. ej. `Pollo`). `Ninguno` para vegano. NO listes varias proteínas.",
-    )
 
     return "\n".join(lines)
 
@@ -784,62 +615,28 @@ def format_tag_taxonomy_prompt_section() -> str:
         lines.append(f"{num}. **{field}** ({label_es}): {values}.{suffix}")
 
     render(1, "course", "tipo de plato")
-    render(2, "meal_type", "momento de la comida")
+    render(2, "meal_type", "momento de la comida", "Elige EXACTAMENTE uno, o omite para platos principales genéricos.")
     render(3, "region", "región mexicana de origen", "Usa el estado si se menciona o se infiere; si no, omite.")
     render(
         4,
-        "protein",
-        "fuentes de proteína",
-        "Usa `Pescado` para CUALQUIER pez de aleta (atún, salmón, mojarra, tilapia, huachinango, bacalao, etc.); `Camarón` para camarón.",
-    )
-    render(
-        5,
         "primary_protein",
         "proteína principal",
-        "Elige EXACTAMENTE una de la lista (la más prominente). Cualquier pez de aleta es `Pescado`. Usa `Ninguno` para platos sin proteína animal.",
+        "Elige EXACTAMENTE una de la lista (la más prominente). Cualquier pez de aleta es `Pescado`. "
+        "NO uses `Ninguno` si hay proteína animal o mariscos en la receta.",
     )
-    render(6, "spiciness", "nivel de picor", "Elige EXACTAMENTE una.")
-    render(7, "dietary", "propiedades dietéticas")
-    render(8, "cooking_method", "métodos de cocción")
-    render(9, "chile_type", "chiles utilizados")
-    render(10, "cuisine_style", "estilo de cocina")
-    render(11, "difficulty", "dificultad", "Elige EXACTAMENTE una.")
-    render(12, "season", "temporada o evento")
-    render(13, "key_ingredient", "ingredientes clave definitorios")
-    render(14, "budget", "categoría de costo", "Elige EXACTAMENTE una.")
-    render(15, "cooking_equipment", "equipo esencial")
+    render(5, "spiciness", "nivel de picor", "Elige EXACTAMENTE una.")
+    render(6, "dietary", "propiedades dietéticas")
+    render(7, "cooking_method", "métodos de cocción", "Máximo 2.")
+    render(8, "chile_type", "chiles utilizados", "Máximo 3.")
+    render(9, "difficulty", "dificultad", "Elige EXACTAMENTE una.")
+    render(10, "key_ingredient", "ingredientes clave definitorios", "Máximo 3; solo del vocabulario.")
+    render(11, "budget", "categoría de costo", "Elige EXACTAMENTE una.")
     render(
-        16,
+        12,
         "dish_format",
         "formato del platillo",
-        "Máximo 2. Úsalo SOLO cuando aplica un formato reconocible. No uses `Salsa` cuando la salsa es un componente (p. ej. 'Pollo en salsa de...').",
+        "Máximo 2. Úsalo SOLO cuando aplica un formato reconocible. No uses `Salsa` cuando la salsa es un componente.",
     )
-    render(
-        17,
-        "preparation_style",
-        "estilo de preparación",
-        "Máximo 2. Úsalo para platos sin formato claro (p. ej. 'Pescado en salsa' -> `En Salsa`). No dupliques `cooking_method`.",
-    )
-    render(18, "flavor_profile", "perfil de sabor", "Elige 2-5.")
-    render(19, "texture", "textura", "Elige 1-3.")
-    render(
-        20,
-        "occasion",
-        "ocasión",
-        "0-3. Infiere de la dificultad, el tiempo total (ver CONTEXTO) y el estilo (rara vez aparece en el texto).",
-    )
-    render(
-        21,
-        "pairs_well_with",
-        "acompañamientos",
-        "0-4. Extrae de frases como 'se sirve con...' en las instrucciones.",
-    )
-    render(22, "serving_size", "tamaño de porción", "Deriva del rendimiento si es numérico.")
-    render(23, "allergens", "alérgenos", "Incluye solo alérgenos claramente presentes; usa `Ninguno` si no hay.")
-    render(24, "make_ahead", "preparación anticipada")
-    render(25, "kid_friendly", "apto para niños", "Elige EXACTAMENTE una si aplica.")
-
-    lines.append("")
-    lines.append("Además: **contains_alcohol** (booleano) — `true` si la receta contiene alcohol.")
+    render(13, "allergens", "alérgenos", "Incluye solo alérgenos claramente presentes; usa `Ninguno` si no hay.")
 
     return "\n".join(lines)

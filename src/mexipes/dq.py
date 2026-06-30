@@ -8,7 +8,6 @@ from mexipes.inherited_tags import region_claim_supported
 from mexipes.recipe_validation import is_non_recipe_extraction
 from mexipes.schemas import recipe_time
 from mexipes.schemas import tag_vocabularies as vocab
-from mexipes.schemas.health_nutrition_tags import VALID_HEALTH_NUTRITION_ES
 from mexipes.schemas.publication import PublicationMetadata
 from mexipes.schemas.recipe import (
     ExtractedRecipe,
@@ -45,21 +44,11 @@ VALID_CANONICAL_REGIONS = vocab.es_values("region")
 # List fields whose membership is checked (as warnings), excluding open fields.
 _CHECKED_LIST_FIELDS = (
     "course",
-    "meal_type",
-    "protein",
     "dietary",
     "cooking_method",
-    "cuisine_style",
-    "season",
     "dish_format",
-    "preparation_style",
-    "flavor_profile",
-    "texture",
-    "occasion",
-    "pairs_well_with",
+    "key_ingredient",
     "allergens",
-    "make_ahead",
-    "health_nutrition",
 )
 
 
@@ -203,21 +192,6 @@ def _validate_publication_metadata(report: DQReport, pub_id: int, metadata: Publ
 
     inherited = metadata.inherited_tags
     for field_name in vocab.INHERITED_TAG_FIELDS:
-        if field_name == "health_nutrition":
-            allowed = VALID_HEALTH_NUTRITION_ES
-            for tag in inherited.health_nutrition:
-                if tag not in allowed:
-                    report.add(
-                        DQIssue(
-                            publication_id=pub_id,
-                            recipe_id=None,
-                            stage=stage,
-                            field=f"inherited_tags.{field_name}",
-                            severity="warning",
-                            message=f"Unknown inherited health_nutrition tag '{tag}'",
-                        )
-                    )
-            continue
         if field_name not in vocab.VOCABULARIES:
             continue
         allowed = vocab.es_values(field_name)
@@ -489,19 +463,17 @@ def _validate_tag_set(
     )
 
     # Optional scalars (warn if set to an unknown value)
-    for field_name in ("serving_size", "kid_friendly"):
-        value = getattr(tags, field_name)
-        if value and value not in values_fn(field_name):
-            report.add(
-                DQIssue(
-                    publication_id=pub_id,
-                    recipe_id=recipe_id,
-                    stage=stage,
-                    field=field_name,
-                    severity="warning",
-                    message=f"Unknown {field_name} value '{value}' (not in canonical vocabulary)",
-                )
+    if tags.meal_type and tags.meal_type not in values_fn("meal_type"):
+        report.add(
+            DQIssue(
+                publication_id=pub_id,
+                recipe_id=recipe_id,
+                stage=stage,
+                field="meal_type",
+                severity="warning",
+                message=f"Unknown meal_type value '{tags.meal_type}' (not in canonical vocabulary)",
             )
+        )
 
     # List fields with controlled vocab
     for field_name in _CHECKED_LIST_FIELDS:
@@ -521,7 +493,7 @@ def _validate_tag_set(
                 message="No course tags assigned",
             )
         )
-    if not tags.dish_format and not tags.preparation_style:
+    if not tags.dish_format:
         report.add(
             DQIssue(
                 publication_id=pub_id,
@@ -529,11 +501,23 @@ def _validate_tag_set(
                 stage=stage,
                 field="dish_format",
                 severity="warning",
-                message="No dish_format or preparation_style assigned",
+                message="No dish_format assigned",
             )
         )
 
-    # health_nutrition validated via _CHECKED_LIST_FIELDS with lang-aware values_fn
+    for field_name, max_len in vocab.LIST_FIELD_MAX_LENGTHS.items():
+        values = getattr(tags, field_name, None) or []
+        if len(values) > max_len:
+            report.add(
+                DQIssue(
+                    publication_id=pub_id,
+                    recipe_id=recipe_id,
+                    stage=stage,
+                    field=field_name,
+                    severity="warning",
+                    message=f"Too many {field_name} values ({len(values)}, max {max_len})",
+                )
+            )
 
 
 def _validate_tags(report: DQReport, pub_id: int, recipe_id: int, tags: RecipeTagSet) -> None:

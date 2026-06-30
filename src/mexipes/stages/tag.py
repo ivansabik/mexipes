@@ -1,12 +1,10 @@
 import logging
 
 from mexipes.config import settings
-from mexipes.inherited_tags import protein_inheritance_allowed
 from mexipes.llm import call_llm, load_prompt
 from mexipes.region import resolve_region
 from mexipes.schemas import ExtractedRecipe, RecipeStatus, RecipeTagSet
 from mexipes.schemas import tag_vocabularies as vocab
-from mexipes.schemas.health_nutrition_tags import format_health_nutrition_prompt_section
 from mexipes.stages.infer_time import ensure_total_time
 from mexipes.storage import RecipeStore
 
@@ -20,9 +18,6 @@ def _merge_inherited_tags(tags: RecipeTagSet, inherited) -> None:
     resolve_region(). Budget overrides the recipe value when inherited is set.
     """
     for field_name in vocab.INHERITABLE_MERGE_FIELDS:
-        if field_name == "protein" and not protein_inheritance_allowed(inherited):
-            continue
-
         value = getattr(inherited, field_name, None)
         if not value:
             continue
@@ -41,9 +36,6 @@ def _merge_inherited_tags(tags: RecipeTagSet, inherited) -> None:
             for item in normalized:
                 if item not in recipe_value:
                     recipe_value.append(item)
-        elif isinstance(value, str) and not recipe_value:
-            normalized = vocab.normalize_value_to_es(field_name, value)
-            setattr(tags, field_name, normalized)
 
 
 def _format_inherited_context(inherited) -> str:
@@ -53,8 +45,6 @@ def _format_inherited_context(inherited) -> str:
 
     inherited_items = []
     for field_name in vocab.INHERITABLE_MERGE_FIELDS:
-        if field_name == "protein" and not protein_inheritance_allowed(inherited):
-            continue
         value = getattr(inherited, field_name, None)
         if value:
             inherited_items.append(f"{field_name}: {value}")
@@ -76,12 +66,10 @@ def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> Recip
 
     rewritten = ensure_total_time(store, publication_id, recipe_id)
 
-    # Tag from the rewritten Spanish text (closest clean source to the original).
     extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
     if not rewritten:
         raise ValueError(f"No rewritten recipe data found for Publication {publication_id}, Recipe {recipe_id}")
 
-    # Load publication metadata for context
     metadata = store.load_publication_metadata(publication_id)
     pub_title = metadata.document_title if metadata else "Unknown"
     inherited_tags = metadata.inherited_tags if metadata else None
@@ -92,10 +80,6 @@ def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> Recip
     prompt_template = prompt_template.replace(
         "<!-- TAG_TAXONOMY -->",
         vocab.format_tag_taxonomy_prompt_section(),
-    )
-    prompt_template = prompt_template.replace(
-        "<!-- HEALTH_NUTRITION_TAXONOMY -->",
-        format_health_nutrition_prompt_section(),
     )
 
     prompt = (
@@ -119,9 +103,6 @@ def tag_recipe(store: RecipeStore, publication_id: int, recipe_id: int) -> Recip
         max_retries=settings.tagging.max_retries,
     )
 
-    # Safety net: drop values the model placed in the wrong closed-vocabulary field
-    # (e.g. 'Botana' in course/occasion) so they do not leak untranslated into the
-    # localized English tag set.
     tags = RecipeTagSet(**vocab.sanitize_recipe_tags_data(tags.model_dump()))
 
     if inherited_tags:

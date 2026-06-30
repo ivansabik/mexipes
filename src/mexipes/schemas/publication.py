@@ -26,10 +26,6 @@ class InheritedTags(BaseModel):
         None,
         description="Región mexicana si todo el libro es regional (p. ej. 'Yucatán', 'Oaxaca')",
     )
-    season: list[str] = Field(
-        default_factory=list,
-        description="Temporadas o eventos globales (p. ej. ['Festividad'], ['Cuaresma'])",
-    )
     dietary: list[str] = Field(
         default_factory=list,
         description="Etiquetas dietéticas globales (p. ej. ['Vegano', 'Vegetariano', 'Sin Lácteos'])",
@@ -37,21 +33,6 @@ class InheritedTags(BaseModel):
     budget: str | None = Field(
         None,
         description="Categoría de costo global (p. ej. 'Económico')",
-    )
-    health_nutrition: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Atributos de salud/nutrición globales (vocabulario canónico en español): "
-            "p. ej. Bajo en Sodio, Alto en Proteína, Alimentos Integrales"
-        ),
-    )
-    cuisine_style: list[str] = Field(
-        default_factory=list,
-        description="Estilo de cocina global (p. ej. ['Comida Callejera', 'Tradicional Regional'])",
-    )
-    protein: list[str] = Field(
-        default_factory=list,
-        description="Proteína única global solo si el libro es exclusivamente de una (p. ej. ['Pollo'])",
     )
 
 

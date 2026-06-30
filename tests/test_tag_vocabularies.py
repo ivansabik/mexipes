@@ -18,17 +18,14 @@ def _minimal_tag_data(**overrides) -> dict:
     return data
 
 
-def test_sanitize_drops_botana_from_course_and_occasion():
+def test_sanitize_drops_botana_from_course():
     data = _minimal_tag_data(
         course=["Plato Principal", "Botana"],
-        meal_type=["Comida", "Botana"],
-        occasion=["Entre Semana", "Botana"],
+        meal_type="Botana",
     )
     cleaned = vocab.sanitize_recipe_tags_data(data)
     assert cleaned["course"] == ["Plato Principal"]
-    assert cleaned["occasion"] == ["Entre Semana"]
-    # 'Botana' is a valid meal_type and must be preserved there.
-    assert cleaned["meal_type"] == ["Comida", "Botana"]
+    assert cleaned["meal_type"] == "Botana"
 
 
 def test_sanitize_coerces_english_then_keeps():
@@ -43,92 +40,75 @@ def test_sanitize_dedupes_and_drops_unknown():
     assert cleaned["course"] == ["Postre"]
 
 
-def test_sanitize_coerces_health_nutrition_to_spanish():
+def test_sanitize_drops_unknown_key_ingredients():
+    data = _minimal_tag_data(key_ingredient=["Nuez", "Canela", "Jitomate"])
+    cleaned = vocab.sanitize_recipe_tags_data(data)
+    assert cleaned["key_ingredient"] == ["Jitomate"]
+
+
+def test_sanitize_caps_key_ingredient_at_three():
     data = _minimal_tag_data(
-        health_nutrition=["Keto-Friendly", "Low Carb"],  # legacy English input
+        key_ingredient=["Jitomate", "Aguacate", "Cilantro", "Chile", "Masa"],
     )
     cleaned = vocab.sanitize_recipe_tags_data(data)
-    assert cleaned["health_nutrition"] == ["Apto para Keto", "Bajo en Carbohidratos"]
-
-
-def test_sanitize_leaves_open_fields_untouched():
-    data = _minimal_tag_data(key_ingredient=["Nuez", "Canela"])
-    cleaned = vocab.sanitize_recipe_tags_data(data)
-    assert cleaned["key_ingredient"] == ["Nuez", "Canela"]
+    assert cleaned["key_ingredient"] == ["Jitomate", "Aguacate", "Cilantro"]
 
 
 def test_primary_protein_species_coerced_to_pescado():
-    # 'Atún' is a required-scalar value that is not in the vocabulary; it must be
-    # coerced to the canonical 'Pescado' bucket to avoid a hard DQ error.
-    data = _minimal_tag_data(primary_protein="Atún", protein=["Atún", "Camarón"])
+    data = _minimal_tag_data(primary_protein="Atún")
     cleaned = vocab.sanitize_recipe_tags_data(data)
     assert cleaned["primary_protein"] == "Pescado"
-    assert cleaned["protein"] == ["Pescado", "Camarón"]
-
-
-def test_protein_list_dedupes_after_alias():
-    data = _minimal_tag_data(protein=["Atún", "Pescado", "Salmón"])
-    cleaned = vocab.sanitize_recipe_tags_data(data)
-    assert cleaned["protein"] == ["Pescado"]
-
-
-def test_inherited_protein_species_coerced_and_deduped():
-    inherited = vocab.normalize_inherited_tags_data({"protein": ["Atún", "Pescado"], "primary_protein": "Salmón"})
-    assert inherited["protein"] == ["Pescado"]
-    assert inherited["primary_protein"] == "Pescado"
 
 
 def test_primary_protein_puerco_coerced_to_cerdo():
-    data = _minimal_tag_data(primary_protein="Puerco", protein=["Pollo", "Puerco"])
+    data = _minimal_tag_data(primary_protein="Puerco")
     cleaned = vocab.sanitize_recipe_tags_data(data)
     assert cleaned["primary_protein"] == "Cerdo"
-    assert cleaned["protein"] == ["Pollo", "Cerdo"]
 
 
-def test_invalid_kid_friendly_scalar_dropped():
-    data = _minimal_tag_data(kid_friendly="Medio", spiciness="Medio")
+def test_meal_type_coerced_from_legacy_list():
+    data = _minimal_tag_data(meal_type=["Comida", "Cena", "Botana"])
     cleaned = vocab.sanitize_recipe_tags_data(data)
-    assert cleaned["kid_friendly"] is None
-    assert cleaned["spiciness"] == "Medio"
+    assert cleaned["meal_type"] == "Botana"
+
+
+def test_meal_type_scalar_preserved():
+    data = _minimal_tag_data(meal_type="Cena")
+    cleaned = vocab.sanitize_recipe_tags_data(data)
+    assert cleaned["meal_type"] == "Cena"
+
+
+def test_dish_format_legacy_mapped_to_antojitos():
+    data = _minimal_tag_data(dish_format=["Huaraches"])
+    cleaned = vocab.sanitize_recipe_tags_data(data)
+    assert cleaned["dish_format"] == ["Antojitos"]
 
 
 def test_sanitized_tags_do_not_leak_untranslated_into_localized():
-    data = _minimal_tag_data(course=["Plato Principal", "Botana"], meal_type=["Botana"])
+    data = _minimal_tag_data(course=["Plato Principal", "Botana"], meal_type="Botana")
     tags = RecipeTagSet(**vocab.sanitize_recipe_tags_data(data))
     localized = localize_tag_set(tags)
-    # No Spanish 'Botana' should survive in the English course field.
     assert "Botana" not in localized.course
     assert localized.course == ["Main Dish"]
-    assert localized.meal_type == ["Snack"]
+    assert localized.meal_type == "Snack"
 
 
-def test_health_nutrition_localizes_to_english():
+def test_localize_open_chile_via_llm_fallback():
     tags = RecipeTagSet(
         **_minimal_tag_data(
-            health_nutrition=["Apto para Keto", "Bajo en Carbohidratos", "Alto en Proteína"],
-        )
-    )
-    localized = localize_tag_set(tags)
-    assert localized.health_nutrition == ["Keto-Friendly", "Low Carb", "High Protein"]
-
-
-def test_localize_open_fields_via_llm_fallback():
-    tags = RecipeTagSet(
-        **_minimal_tag_data(
-            key_ingredient=["Nuez", "Canela", "Jitomate"],
+            chile_type=["Chilcuacle", "Ancho"],
         )
     )
     mock_response = TagTranslations(
         translations=[
-            TagTranslation(es="Nuez", en="Walnut"),
-            TagTranslation(es="Canela", en="Cinnamon"),
+            TagTranslation(es="Chilcuacle", en="Chilcuacle Chile"),
         ]
     )
 
     with patch("mexipes.stages.localize.call_llm", return_value=mock_response):
         localized = localize_tag_set(tags)
 
-    assert localized.key_ingredient == ["Walnut", "Cinnamon", "Tomato"]
+    assert localized.chile_type == ["Chilcuacle Chile", "Ancho"]
 
 
 def test_localize_skips_llm_when_no_open_field_leftovers():
@@ -144,3 +124,8 @@ def test_localize_skips_llm_when_no_open_field_leftovers():
         mock_llm.assert_not_called()
 
     assert localized.key_ingredient == ["Tomato", "Avocado"]
+
+
+def test_tag_schema_version_is_three():
+    tags = RecipeTagSet(**_minimal_tag_data())
+    assert tags.tag_schema_version == 3

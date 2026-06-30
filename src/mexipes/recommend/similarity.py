@@ -1,18 +1,16 @@
 """Tag-overlap recipe similarity (content-based, no ML).
 
 Scores recipe-to-recipe similarity from the slug-normalized tag set produced at
-export time, using the weighted Jaccard formula from the plan:
+export time:
 
     score(A, B) =
-      0.35 * jaccard(dish_format)        # falls back to preparation_style if empty
-    + 0.20 * jaccard(preparation_style)
-    + 0.15 * jaccard(flavor_profile)
-    + 0.10 * match(primary_protein)
-    + 0.10 * match(region)
-    + 0.10 * jaccard(key_ingredient)
+      0.40 * jaccard(dish_format)
+    + 0.20 * match(region)
+    + 0.15 * match(primary_protein)
+    + 0.15 * jaccard(key_ingredient)
+    + 0.10 * jaccard(cooking_method)
 
-Candidate generation uses an in-memory inverted index over a few high-signal
-fields so we avoid a full O(n^2) scan on large corpora.
+Candidate generation uses an in-memory inverted index over high-signal fields.
 """
 
 from __future__ import annotations
@@ -25,24 +23,20 @@ from mexipes.schemas import tag_vocabularies as vocab
 
 logger = logging.getLogger(__name__)
 
-# Weighted components of the similarity score.
 _WEIGHTS = {
-    "dish_format": 0.35,
-    "preparation_style": 0.20,
-    "flavor_profile": 0.15,
-    "primary_protein": 0.10,
-    "region": 0.10,
-    "key_ingredient": 0.10,
+    "dish_format": 0.40,
+    "region": 0.20,
+    "primary_protein": 0.15,
+    "key_ingredient": 0.15,
+    "cooking_method": 0.10,
 }
 
-# Fields used to generate candidate pairs (inverted index blocking keys).
 _BLOCKING_FIELDS = (
     "dish_format",
-    "preparation_style",
     "primary_protein",
     "region",
-    "flavor_profile",
     "key_ingredient",
+    "cooking_method",
 )
 
 
@@ -68,32 +62,16 @@ def _slug_sets(tag_data: dict | None) -> dict[str, set[str]]:
 
 def score_pair(a: dict[str, set[str]], b: dict[str, set[str]]) -> float:
     """Weighted similarity between two slug-set maps (see module docstring)."""
-    # dish_format falls back to preparation_style when a recipe has no format.
-    a_dish = a.get("dish_format") or a.get("preparation_style") or set()
-    b_dish = b.get("dish_format") or b.get("preparation_style") or set()
-
-    score = _WEIGHTS["dish_format"] * _jaccard(a_dish, b_dish)
-    score += _WEIGHTS["preparation_style"] * _jaccard(
-        a.get("preparation_style", set()), b.get("preparation_style", set())
-    )
-    score += _WEIGHTS["flavor_profile"] * _jaccard(a.get("flavor_profile", set()), b.get("flavor_profile", set()))
-    score += _WEIGHTS["primary_protein"] * _match(a.get("primary_protein", set()), b.get("primary_protein", set()))
+    score = _WEIGHTS["dish_format"] * _jaccard(a.get("dish_format", set()), b.get("dish_format", set()))
     score += _WEIGHTS["region"] * _match(a.get("region", set()), b.get("region", set()))
+    score += _WEIGHTS["primary_protein"] * _match(a.get("primary_protein", set()), b.get("primary_protein", set()))
     score += _WEIGHTS["key_ingredient"] * _jaccard(a.get("key_ingredient", set()), b.get("key_ingredient", set()))
+    score += _WEIGHTS["cooking_method"] * _jaccard(a.get("cooking_method", set()), b.get("cooking_method", set()))
     return score
 
 
 def compute_similar(recipes: list[dict], top_n: int = 10) -> dict[str, list[dict]]:
-    """Compute top-N similar recipes for each recipe in an export list.
-
-    Args:
-        recipes: Items from the consolidated export (each with publication_id,
-            recipe_id, title, and a ``tags`` dict).
-        top_n: Number of neighbors to keep per recipe.
-
-    Returns:
-        Map of ``"pub:recipe"`` -> list of ``{key, title, score}`` neighbors.
-    """
+    """Compute top-N similar recipes for each recipe in an export list."""
     keys: list[str] = []
     titles: list[str] = []
     slug_maps: list[dict[str, set[str]]] = []
@@ -103,7 +81,6 @@ def compute_similar(recipes: list[dict], top_n: int = 10) -> dict[str, list[dict
         titles.append(r.get("title") or "")
         slug_maps.append(_slug_sets(r.get("tags")))
 
-    # Build inverted index over blocking fields for candidate generation.
     inverted: dict[tuple[str, str], list[int]] = {}
     for idx, smap in enumerate(slug_maps):
         for field in _BLOCKING_FIELDS:

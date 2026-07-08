@@ -6,6 +6,8 @@ from mexipes.pipeline.orchestrator import (
     _batch_exceeded,
     _pending_recipe_count,
     _pipeline_progress_snapshot,
+    _registered_publication_ids,
+    run_full_pipeline,
     run_pipeline_until_ready,
 )
 from mexipes.schemas.recipe import RecipeStatus
@@ -95,3 +97,63 @@ def test_run_pipeline_until_ready_loops_until_terminal(tmp_path):
         run_pipeline_until_ready(store, 2, batch_size=10)
 
     assert call_count["n"] == 1
+
+
+def _register_publication(store: RecipeStore, publication_id: int) -> None:
+    """Create a minimal registered publication (source.pdf present)."""
+    pub_dir = store.get_publication_dir(publication_id)
+    (pub_dir / "source.pdf").write_bytes(b"%PDF-1.4 stub")
+
+
+def test_registered_publication_ids_requires_source_pdf(tmp_path):
+    store = RecipeStore(tmp_path)
+    _register_publication(store, 3)
+    _register_publication(store, 1)
+    # A publication dir without source.pdf should be ignored.
+    store.get_publication_dir(2)
+
+    assert _registered_publication_ids(store) == [1, 3]
+
+
+def test_run_full_pipeline_ingests_extracts_and_processes(tmp_path):
+    store = RecipeStore(tmp_path)
+    staging = tmp_path / "staging"
+    staging.mkdir(exist_ok=True)
+    (staging / "sample.pdf").write_bytes(b"%PDF-1.4 stub")
+
+    def fake_ingest(_store, _staging):
+        _register_publication(store, 1)
+
+    def fake_extract(_store, publication_id):
+        store.set_status(publication_id, 1, RecipeStatus.EXTRACTED)
+
+    def fake_until_ready(_store, publication_id, **_kwargs):
+        store.set_status(publication_id, 1, RecipeStatus.READY)
+
+    with (
+        patch("mexipes.stages.ingest.ingest_pdfs", side_effect=fake_ingest) as ingest,
+        patch("mexipes.stages.extract.extract_publication_recipes", side_effect=fake_extract) as extract,
+        patch("mexipes.pipeline.orchestrator.run_pipeline_until_ready", side_effect=fake_until_ready) as until_ready,
+    ):
+        processed = run_full_pipeline(store, staging_dir=staging, batch_size=5)
+
+    ingest.assert_called_once()
+    extract.assert_called_once()
+    until_ready.assert_called_once()
+    assert processed == [1]
+
+
+def test_run_full_pipeline_skips_extraction_when_recipes_exist(tmp_path):
+    store = RecipeStore(tmp_path)
+    _register_publication(store, 1)
+    store.set_status(1, 1, RecipeStatus.TAGGED)
+
+    with (
+        patch("mexipes.stages.extract.extract_publication_recipes") as extract,
+        patch("mexipes.pipeline.orchestrator.run_pipeline_until_ready") as until_ready,
+    ):
+        processed = run_full_pipeline(store, staging_dir=tmp_path / "missing", batch_size=5)
+
+    extract.assert_not_called()
+    until_ready.assert_called_once()
+    assert processed == [1]

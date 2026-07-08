@@ -127,6 +127,68 @@ def run_pipeline_until_ready(
         signal.signal(signal.SIGINT, previous_handler)
 
 
+def _registered_publication_ids(store: RecipeStore) -> list[int]:
+    """Return sorted IDs of all registered publications (those with a source.pdf)."""
+    publications_dir = store.data_dir / "publications"
+    if not publications_dir.exists():
+        return []
+    ids = []
+    for pub_path in sorted(publications_dir.iterdir(), key=lambda p: int(p.name) if p.name.isdigit() else 999999):
+        if pub_path.is_dir() and pub_path.name.isdigit() and (pub_path / "source.pdf").exists():
+            ids.append(int(pub_path.name))
+    return ids
+
+
+def run_full_pipeline(
+    store: RecipeStore,
+    *,
+    staging_dir: Path | None = None,
+    batch_size: int = 10,
+    sleep_seconds: float = 0.0,
+) -> list[int]:
+    """Ingest staged PDFs, then drive every registered publication to a terminal status.
+
+    This is the one-shot entry point behind ``mexipes all``: it ingests any PDFs in
+    ``staging_dir`` (default ``data/staging``), extracts recipes for publications that
+    have not been extracted yet, and loops batches per publication until every recipe
+    is ready or failed. Returns the list of processed publication IDs.
+    """
+    staging = staging_dir if staging_dir is not None else store.data_dir / "staging"
+    if staging.exists():
+        pdf_files = [p for p in staging.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"]
+        if pdf_files:
+            logger.info("Ingesting %d PDF(s) from %s...", len(pdf_files), staging)
+            from mexipes.stages.ingest import ingest_pdfs
+
+            ingest_pdfs(store, staging)
+
+    publication_ids = _registered_publication_ids(store)
+    if not publication_ids:
+        logger.warning("No registered publications found. Nothing to process.")
+        return []
+
+    logger.info("Processing %d publication(s) through all stages: %s", len(publication_ids), publication_ids)
+    for pub_id in publication_ids:
+        logger.info("=== Publication %s: running all stages until ready ===", pub_id)
+        # Extract first if this publication has no recipes yet; run_pipeline_until_ready
+        # keys off the status index, which is empty until extraction has run.
+        if not any(r_pub == pub_id for r_pub, _ in store.find_all_recipes()):
+            from mexipes.stages.extract import extract_publication_recipes
+
+            try:
+                extract_publication_recipes(store, pub_id)
+            except Exception:
+                logger.exception("Extraction failed for Publication %s (skipping).", pub_id)
+                continue
+        run_pipeline_until_ready(
+            store,
+            pub_id,
+            batch_size=batch_size,
+            sleep_seconds=sleep_seconds,
+        )
+    return publication_ids
+
+
 def run_stage_for_recipe(store: RecipeStore, publication_id: int, recipe_id: int, stage_name: str) -> None:
     """Run a specific pipeline stage for a single recipe, updating its status."""
     logger.info(f"Executing stage '{stage_name}' for Publication {publication_id}, Recipe {recipe_id}...")

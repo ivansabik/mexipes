@@ -6,7 +6,7 @@ Convert Spanish recipe publication PDFs into structured, localized English conte
 
 ```
 src/mexipes/
-  cli.py                # Typer CLI: mexipes ingest|run|status|dq|export|recommend
+  cli.py                # Typer CLI: mexipes ingest|run|status|dq|review|export|recommend
   config.py             # Per-stage model config via MEXIPES_* env vars + .env
   pipeline/
     orchestrator.py     # Stage sequencing, batch runs, export
@@ -36,7 +36,9 @@ src/mexipes/
   recipe_validation.py  # Non-recipe extraction detection
   text_utils.py         # Title normalization, section header detection
   recommend/            # Tag-overlap similarity index
+  review/               # On-demand AI review schemas, registry, runner
 data/publications/<pub>/recipes/<id>/   # Stage JSON outputs + status.json
+data/reviews/           # Gitignored mexipes review artifacts
 tests/                  # unit tests (no API key needed)
 ```
 
@@ -78,6 +80,8 @@ extract → rewrite → describe → tag → localize → substitute → ready
 15. **Export writes two local artifacts:** `recipes.json` + `recipes_facets.json` (auto-named from stem). Both are gitignored — regenerate with `mexipes export`.
 16. **Region resolution has a priority order:** recipe-level tag → regional_sections by page range → inherited_tags.region (gated by title evidence via `region_claim_supported()`).
 17. **Never commit `.env`.** Already in `.gitignore`. Use `.env.example` as template.
+18. **Review is advisory and fully isolated.** `mexipes review` never writes to `data/publications/`: processed publications are read via `ReadOnlyRecipeStore`, sampled corpus PDFs are ingested/processed inside the run's `_workspace/` subdirectory, and all artifacts land under `data/reviews/review_<timestamp>_<seed>/`. Findings are never auto-applied.
+19. **Review samples by default.** `mexipes review` reviews 3 random publications x 3 random recipes unless `--publications` / `--recipes-per-pub` / pinning options override it.
 
 ## Common commands
 
@@ -97,6 +101,7 @@ mexipes run --publication 1 --batch 10        # advance up to 10 recipes one sta
 mexipes run --recipe 1:1 --stage tag          # run specific stage for one recipe
 mexipes status --publication 1                # check progress
 mexipes dq --publication 1 --verbose          # data quality checks
+mexipes review --seed 42                      # AI review: 3 pubs x 3 recipes, isolated artifacts
 mexipes export --output recipes.json          # export ready recipes
 mexipes recommend --export recipes.json       # build similarity index
 ```
@@ -116,6 +121,7 @@ mexipes recommend --export recipes.json       # build similarity index
 | Change per-stage model | `config.py` or `.env` (`MEXIPES_TAGGING_MODEL`, etc.) |
 | Change inherited tag logic | `inherited_tags.py`, `stages/tag.py` |
 | Change similarity/recommendations | `recommend/similarity.py` |
+| Change on-demand review | `review/`, `prompts/review_*.md`, `cli.py`, `config.py` |
 
 ## Workflow: Debugging stuck/failed recipes
 
@@ -134,6 +140,24 @@ mexipes recommend --export recipes.json       # build similarity index
 4. Re-tag affected recipes: `mexipes run --publication N --stage tag`
 5. Re-localize and re-substitute if recipes were already past those stages.
 6. Re-export if needed: `mexipes export --output recipes.json`
+
+## Workflow: On-demand AI review
+
+1. Generate or refresh data with `mexipes run`, `mexipes all`, or targeted stage reruns.
+2. Run deterministic checks first: `mexipes dq --publication N --verbose` (or all publications).
+3. Run AI review on a bounded sample:
+   - `mexipes review --seed 42` — default 3 random publications x 3 random recipes
+   - `mexipes review --publications 5 --recipes-per-pub 4 --seed 42`
+   - `mexipes review --publication 1 --recipes 1-25 --no-process`
+   - `mexipes review --only-dq --personas extraction,taxonomy`
+4. Read the run-stamped artifact under `data/reviews/review_<timestamp>_<seed>/`.
+5. Human triages findings:
+   - one-off data issue → rerun a stage, e.g. `mexipes run --recipe 1:2 --stage tag`
+   - systemic issue → edit prompt, DQ rule, or code
+   - weak/subjective issue → ignore or leave as `human_review`
+6. Re-run affected stages, then `mexipes dq`, then `mexipes review` again on a fresh seeded sample.
+
+Review artifacts are gitignored and isolated from pipeline outputs. Review models are configured via `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`. Do not build auto-apply behavior without first adding stage-output versioning/backups and downstream invalidation.
 
 ## Further reading
 

@@ -12,4 +12,5 @@ Quick reminders:
 - `describe` stage outputs `images_described` (not `described`)
 - Use `pip install -e ".[dev]"` and `make test` after code changes
 - Run `make format`, `make lint`, and `make check` before committing; `make setup` installs git hooks
+- `mexipes review` is advisory: default 3 publications x 3 recipes, writes only to `data/reviews/`, and never auto-applies findings
 - Never commit .env

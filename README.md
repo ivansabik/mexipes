@@ -15,6 +15,7 @@ Automated pipeline for converting recipe publication PDFs from Spanish into stru
 - **Taxonomy Tagging**: Classification of course, protein, spiciness, budget, equipment, and chiles.
 - **Localization**: English translation, URL slugs, and cultural introductions.
 - **Sourcing Substitutions**: Sourcing substitutions for US and Canada target audiences.
+- **On-demand Quality Review**: AI reviewer personas audit sampled publications/recipes and write isolated review artifacts for human triage.
 
 ---
 
@@ -123,7 +124,33 @@ mexipes dq --publication 1 --verbose
 
 Exits with code 1 if any **errors** are found; warnings alone still pass.
 
-### 5. Export consolidated data
+### 5. Run on-demand quality review
+
+`mexipes review` samples generated pipeline outputs, attaches the relevant source PDF pages, and asks specialized reviewer personas to produce evidence-backed findings. It is advisory and human-in-the-loop: it writes review artifacts only and never touches `data/publications/` — processed publications are read through a read-only store view.
+
+```bash
+mexipes review                              # 3 random publications x 3 random recipes
+mexipes review --publications 5 --recipes-per-pub 4 --seed 42
+mexipes review --publication 1 --recipes 1-25 --no-process
+mexipes review --only-dq --personas extraction,taxonomy
+```
+
+Defaults keep cost bounded: `--publications/-P 3` and `--recipes-per-pub/-n 3`. If a sampled PDF from `--corpus-dir all_pdfs/` is not processed yet, review ingests and runs the normal pipeline inside the run's `_workspace/` subdirectory (never `data/publications/`) unless `--no-process` is set, in which case unprocessed PDFs are skipped. All review output — findings, staging, and workspace pipeline outputs — lives under `data/reviews/review_<timestamp>_<seed>/` and is gitignored.
+
+Human-in-the-loop workflow:
+
+1. Generate or update data with `mexipes run` / `mexipes all`.
+2. Run `mexipes dq`.
+3. Run `mexipes review`.
+4. Human triages the review artifact:
+   - one-off data issue → targeted rerun, e.g. `mexipes run --recipe 1:2 --stage tag`
+   - systemic issue → prompt, DQ rule, or code change
+   - weak/subjective issue → ignore or keep as `human_review`
+5. Re-run affected stages, then `dq`, then `review` on a fresh seeded sample.
+
+Judge models are configured independently with `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`.
+
+### 6. Export consolidated data
 
 ```bash
 mexipes export --output recipes.json --status ready
@@ -134,7 +161,7 @@ Writes two files:
 - `recipes.json` — array of consolidated recipe objects (original, rewritten, localized, tags, substitutions)
 - `recipes_facets.json` — inverted facet index (slug → `publication_id:recipe_id` keys) for browse/filter
 
-### 6. Build similarity index (optional)
+### 7. Build similarity index (optional)
 
 ```bash
 mexipes recommend --export recipes.json --output recipes_similar.json
@@ -151,6 +178,7 @@ data/
 ├── staging/              # drop new PDFs here
 ├── rejected/             # invalid or duplicate PDFs
 ├── sample_pdfs/          # optional holding area for smoke-test PDFs
+├── reviews/              # gitignored mexipes review artifacts
 └── publications/
     └── <id>/
         ├── source.pdf

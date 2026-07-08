@@ -96,6 +96,48 @@ def run(
     )
 
 
+@app.command("all")
+def run_all(
+    staging_dir: Path = typer.Option(
+        Path("data/staging"),
+        "--staging",
+        help="Directory of PDFs to ingest before processing",
+    ),
+    batch_size: int = typer.Option(
+        10,
+        "--batch",
+        help="Max recipes advanced per batch, per publication (0 = unlimited)",
+    ),
+    sleep_seconds: float = typer.Option(
+        0.0,
+        "--sleep",
+        help="Seconds to wait between batches",
+    ),
+    export_output: Path | None = typer.Option(
+        None,
+        "--export",
+        "-o",
+        help="If set, export ready recipes to this JSON file after processing",
+    ),
+):
+    """End-to-end: ingest staged PDFs and run every publication through all stages to ready."""
+    store = get_store()
+    from mexipes.pipeline.orchestrator import export_recipes, run_full_pipeline
+
+    typer.echo("Running full pipeline (ingest + all stages for every publication)...")
+    publication_ids = run_full_pipeline(
+        store,
+        staging_dir=staging_dir,
+        batch_size=batch_size,
+        sleep_seconds=sleep_seconds,
+    )
+    typer.echo(f"Processed {len(publication_ids)} publication(s): {publication_ids}")
+
+    if export_output is not None:
+        typer.echo(f"Exporting ready recipes to {export_output}...")
+        export_recipes(store, RecipeStatus.READY, export_output)
+
+
 @app.command()
 def status(
     publication_id: int | None = typer.Option(
@@ -155,6 +197,31 @@ def status(
             typer.echo("    No recipes found.")
         for stat, count in counts.items():
             typer.echo(f"    - {stat.value}: {count}")
+
+
+@app.command("backfill-images")
+def backfill_images(
+    publication_id: int = typer.Option(..., "--publication", "-p", help="Publication ID to backfill images for"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-render full-page photos even when recipes already have images",
+    ),
+):
+    """Deterministically harvest embedded photos for extracted recipes (no LLM)."""
+    store = get_store()
+    publication_dir = store.get_publication_dir(publication_id)
+    pdf_path = publication_dir / "source.pdf"
+    if not pdf_path.exists():
+        typer.echo(f"Publication {publication_id} not found (no source.pdf).", err=True)
+        raise typer.Exit(code=1)
+
+    from mexipes.stages.extract import collect_assigned_xrefs, harvest_embedded_photos
+
+    typer.echo(f"Backfilling embedded photos for Publication {publication_id}...")
+    assigned_xrefs = collect_assigned_xrefs(store, publication_id, pdf_path) if not force else set()
+    attached = harvest_embedded_photos(store, publication_id, pdf_path, assigned_xrefs, force=force)
+    typer.echo(f"Attached photos to {attached} recipe(s).")
 
 
 @app.command()
@@ -233,6 +300,123 @@ def dq(
             typer.echo(f"  ({len(warnings)} warnings hidden, use --verbose to show)")
 
     raise typer.Exit(code=0 if report.passed else 1)
+
+
+@app.command()
+def review(
+    publications: int = typer.Option(
+        3,
+        "--publications",
+        "-P",
+        help="Number of publications to randomly sample",
+    ),
+    recipes_per_pub: int = typer.Option(
+        3,
+        "--recipes-per-pub",
+        "-n",
+        help="Number of recipes to randomly sample per selected publication",
+    ),
+    publication: list[str] | None = typer.Option(
+        None,
+        "--publication",
+        "-p",
+        help="Pin publication id(s), repeatable or comma/range syntax such as 1,2-3",
+    ),
+    recipes: str | None = typer.Option(
+        None,
+        "--recipes",
+        help="Pin recipe candidate ids/ranges within selected publication(s), e.g. 1-25,30,40-42",
+    ),
+    personas: str | None = typer.Option(
+        None,
+        "--personas",
+        help="Comma-separated reviewers to run (default: all)",
+    ),
+    only_dq: bool = typer.Option(
+        False,
+        "--only-dq",
+        help="Review only recipes with deterministic DQ issues",
+    ),
+    seed: int | None = typer.Option(None, "--seed", help="Seed both random sampling levels"),
+    corpus_dir: Path = typer.Option(
+        Path("all_pdfs"),
+        "--corpus-dir",
+        help=(
+            "Source PDF corpus for sampling unprocessed publications; "
+            "they are processed inside the run's _workspace, never data/publications"
+        ),
+    ),
+    no_process: bool = typer.Option(
+        False,
+        "--no-process",
+        help="Only review already-processed publications; skip unprocessed corpus PDFs entirely",
+    ),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        help="Root directory for run-stamped review artifacts (default: MEXIPES_REVIEWS_DIR/data/reviews)",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        help="Explicit consolidated JSON output path (must not be under data/publications)",
+    ),
+    markdown: Path | None = typer.Option(
+        None,
+        "--markdown",
+        help="Optional Markdown summary path (must not be under data/publications)",
+    ),
+    max_findings_per_recipe: int = typer.Option(
+        5,
+        "--max-findings-per-recipe",
+        help="Maximum findings each reviewer may return for one recipe",
+    ),
+):
+    """Run an on-demand AI quality review over sampled publications and recipes."""
+    store = get_store()
+    from mexipes.review.runner import parse_id_ranges, parse_publication_options, run_quality_review
+
+    try:
+        pinned_publications = parse_publication_options(publication)
+        pinned_recipes = parse_id_ranges(recipes)
+        result = run_quality_review(
+            store,
+            publications=publications,
+            recipes_per_pub=recipes_per_pub,
+            pinned_publications=pinned_publications,
+            pinned_recipes=pinned_recipes,
+            personas=personas,
+            only_dq=only_dq,
+            seed=seed,
+            corpus_dir=corpus_dir,
+            no_process=no_process,
+            output_dir=output_dir,
+            output=output,
+            markdown=markdown,
+            max_findings_per_recipe=max_findings_per_recipe,
+        )
+    except Exception as exc:
+        typer.echo(f"Review failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    artifact = result.artifact
+    typer.echo("Quality review completed.")
+    typer.echo(f"  Publications: {artifact.metadata.sampled_publications}")
+    typer.echo(f"  Recipes: {artifact.metadata.sampled_recipes}")
+    typer.echo(
+        "  Findings: "
+        f"{artifact.consolidated.error_count} error(s), "
+        f"{artifact.consolidated.warning_count} warning(s), "
+        f"{artifact.consolidated.info_count} info"
+    )
+    typer.echo(f"  Consolidated JSON: {result.output_paths.consolidated_json}")
+    if artifact.metadata.workspace_dir:
+        typer.echo(
+            f"  Workspace (review-only publications {artifact.metadata.workspace_publications}): "
+            f"{artifact.metadata.workspace_dir}"
+        )
+    if result.output_paths.markdown:
+        typer.echo(f"  Markdown summary: {result.output_paths.markdown}")
 
 
 if __name__ == "__main__":

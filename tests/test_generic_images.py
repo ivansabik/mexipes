@@ -15,7 +15,7 @@ def test_strip_generic_recipe_images_removes_repeated_template(tmp_path: Path) -
     publication_id = 1
     shared_image = b"generic-sidebar-template"
 
-    for recipe_id in (1, 7):
+    for recipe_id in (1, 7, 8):
         extracted = ExtractedRecipe(
             title=f"Recipe {recipe_id}",
             ingredients="test",
@@ -28,13 +28,39 @@ def test_strip_generic_recipe_images_removes_repeated_template(tmp_path: Path) -
 
     cleaned = strip_generic_recipe_images(store, publication_id)
 
-    assert cleaned == 2
-    for recipe_id in (1, 7):
+    assert cleaned == 3
+    for recipe_id in (1, 7, 8):
         extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
         assert extracted is not None
         assert extracted.images_count == 0
         assert extracted.image_crops == []
         assert not (store.get_images_dir(publication_id, recipe_id) / "1.png").exists()
+
+
+def test_strip_generic_recipe_images_keeps_image_shared_by_two_recipes(tmp_path: Path) -> None:
+    store = RecipeStore(tmp_path)
+    publication_id = 1
+    shared_image = b"spread-photo-shared-by-two-recipes"
+
+    for recipe_id in (1, 2):
+        extracted = ExtractedRecipe(
+            title=f"Recipe {recipe_id}",
+            ingredients="test",
+            instructions="test",
+            images_count=1,
+            image_crops=[ImageCrop(chunk_page_index=1, box_2d=[0, 499, 1000, 1000])],
+        )
+        store.save_stage_output(publication_id, recipe_id, "extracted", extracted)
+        _write_png(store.get_images_dir(publication_id, recipe_id) / "1.png", shared_image)
+
+    cleaned = strip_generic_recipe_images(store, publication_id)
+
+    assert cleaned == 0
+    for recipe_id in (1, 2):
+        extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
+        assert extracted is not None
+        assert extracted.images_count == 1
+        assert (store.get_images_dir(publication_id, recipe_id) / "1.png").exists()
 
 
 def test_strip_generic_recipe_images_keeps_unique_recipe_photos(tmp_path: Path) -> None:
@@ -67,7 +93,7 @@ def test_strip_generic_recipe_images_clears_images_described(tmp_path: Path) -> 
     publication_id = 1
     shared_image = b"generic-sidebar-template"
 
-    for recipe_id in (1, 2):
+    for recipe_id in (1, 2, 3):
         extracted = ExtractedRecipe(
             title=f"Recipe {recipe_id}",
             ingredients="test",
@@ -86,7 +112,7 @@ def test_strip_generic_recipe_images_clears_images_described(tmp_path: Path) -> 
 
     strip_generic_recipe_images(store, publication_id)
 
-    for recipe_id in (1, 2):
+    for recipe_id in (1, 2, 3):
         described = store.load_stage_output(publication_id, recipe_id, "images_described", ImageDescriptionsResult)
         assert described is not None
         assert described.descriptions == []

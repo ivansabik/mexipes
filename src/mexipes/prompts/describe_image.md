@@ -21,6 +21,13 @@ You must populate the following fields in the response schema:
    - Add stylistic keywords like "4k, high resolution, soft natural lighting, shallow depth of field, rustic Mexican styling".
    - DO NOT use generic quality buzzwords like "photorealistic" or "hyperrealistic". Use photographic descriptions like "85mm lens, f/1.8 aperture, shot on Fujifilm".
 
+## Overlaid publication text (ignore)
+Recipe publication pages often include **decorative titles, section headers, ingredient lists, or captions printed on the same page as the food photo**. These are layout/typography, not part of the dish.
+
+- **Do NOT describe** large stylized recipe titles, subtitles, page numbers, logos, or body text visible in the crop.
+- **Only describe** the food, plating, props, and photographic scene.
+- If text appears in the image, treat it as background noise — never quote it or use it to infer ingredients not visibly present in the food.
+
 ## Recipe Context Guidance (Optional Input)
 You may be provided with recipe context in a system message within `<recipe_context>` tags:
 - **Use the metadata if present**: Use the recipe title and key ingredients/instructions to correctly identify and name the dish in the `suggested_prompt` (e.g. "A professional food photography shot of Tacos al Pastor...").

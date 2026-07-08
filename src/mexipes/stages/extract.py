@@ -13,7 +13,6 @@ from mexipes.inherited_tags import region_claim_supported, sanitize_inherited_ta
 from mexipes.llm import call_llm, load_prompt
 from mexipes.pipeline import pdf_processor
 from mexipes.recipe_validation import (
-    crop_bounds_text,
     filter_index_entries_for_chunk,
     format_index_context,
     is_editorial_extraction,
@@ -44,6 +43,12 @@ logger = logging.getLogger(__name__)
 MAX_CHUNK_BYTES = 15 * 1024 * 1024
 INDEX_SCAN_MAX_PAGE = 40
 INDEX_DISCOVERY_CHUNK = 10
+GENERIC_IMAGE_MIN_RECIPES = 3
+HARVEST_WINDOW_BEFORE = 2
+HARVEST_WINDOW_AFTER = 1
+HARVEST_WINDOW_EXPAND_BEFORE = 4
+HARVEST_WINDOW_EXPAND_AFTER = 4
+HARVEST_SKIP_PAGES = 3  # cover/promo pages before recipe content
 
 
 class ExtractionResult(BaseModel):
@@ -285,6 +290,20 @@ def _render_and_save_crop(
     return True
 
 
+def _prune_extra_recipe_images(images_dir: Path, keep_count: int) -> None:
+    """Remove numbered PNG crops beyond the recipe's declared image count."""
+    if keep_count < 0 or not images_dir.exists():
+        return
+    for img_path in images_dir.glob("*.png"):
+        try:
+            index = int(img_path.stem)
+        except ValueError:
+            continue
+        if index > keep_count:
+            img_path.unlink(missing_ok=True)
+            logger.info(f"Removed orphan image {img_path.name} from {images_dir}")
+
+
 def backfill_companion_photo(
     *,
     pdf_path: Path,
@@ -325,16 +344,14 @@ def backfill_companion_photo(
     if not result.is_companion_photo or not result.box_2d or not is_valid_box_2d(result.box_2d):
         return
 
-    text_rects = pdf_processor.get_page_text_rects(pdf_path, photo_page_index)
-    if crop_bounds_text(result.box_2d, text_rects):
-        logger.info(f"Skipped companion photo backfill (bounds text) for '{recipe.title}'")
-        return
-
     images_dir = store.get_images_dir(publication_id, recipe_id)
+    crop_box = pdf_processor.FULL_PAGE_BOX
+    if result.is_companion_photo and result.box_2d and is_valid_box_2d(result.box_2d):
+        crop_box = _resolve_extract_crop_box(pdf_path, photo_page_index, result.box_2d)
     if not _render_and_save_crop(
         pdf_path=pdf_path,
         page_index=photo_page_index,
-        box_2d=result.box_2d,
+        box_2d=crop_box,
         images_dir=images_dir,
         crop_index=1,
         recipe_title=recipe.title,
@@ -342,13 +359,336 @@ def backfill_companion_photo(
     ):
         return
 
-    crop = ImageCrop(chunk_page_index=1, box_2d=result.box_2d)
+    crop = ImageCrop(chunk_page_index=photo_page, box_2d=crop_box)
     recipe.image_crops = [crop]
     recipe.images_count = 1
     recipe.page_end = photo_page
     assigned_photo_pages.add(photo_page_index)
     store.save_stage_output(publication_id, recipe_id, "extracted", recipe)
     logger.info(f"Backfilled companion photo from page {photo_page} for '{recipe.title}'")
+
+
+def _page_window_indices(
+    page_start: int | None,
+    page_end: int | None,
+    total_pages: int,
+    *,
+    before: int,
+    after: int,
+) -> list[int]:
+    """Return 0-based page indices for a 1-based page window around a recipe."""
+    anchor_start = page_start if page_start is not None else page_end
+    anchor_end = page_end if page_end is not None else page_start
+    if anchor_start is None or anchor_end is None:
+        return []
+
+    lo_1based = max(1, anchor_start - before)
+    hi_1based = min(total_pages, anchor_end + after)
+    return list(range(lo_1based - 1, hi_1based))
+
+
+def _box_overlap_fraction(box_a: list[int], box_b: list[int]) -> float:
+    ay0, ax0, ay1, ax1 = box_a
+    by0, bx0, by1, bx1 = box_b
+    iy = max(0, min(ay1, by1) - max(ay0, by0))
+    ix = max(0, min(ax1, bx1) - max(ax0, bx0))
+    intersection = iy * ix
+    area_a = max(0, ay1 - ay0) * max(0, ax1 - ax0)
+    if area_a <= 0:
+        return 0.0
+    return min(1.0, intersection / area_a)
+
+
+def collect_assigned_xrefs(
+    store: RecipeStore,
+    publication_id: int,
+    pdf_path: Path,
+) -> set[int]:
+    """Seed xref assignments from recipes that already have saved image crops."""
+    assigned: set[int] = set()
+    with fitz.open(pdf_path) as doc:
+        total_pages = len(doc)
+
+    for pub_id, recipe_id in store.find_all_recipes():
+        if pub_id != publication_id:
+            continue
+        extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
+        if not extracted or extracted.images_count == 0 or not extracted.image_crops:
+            continue
+
+        for crop in extracted.image_crops:
+            best_xref: int | None = None
+            best_overlap = 0.0
+            for page_index in _page_window_indices(
+                extracted.page_start,
+                extracted.page_end,
+                total_pages,
+                before=HARVEST_WINDOW_BEFORE,
+                after=HARVEST_WINDOW_AFTER,
+            ):
+                for image in pdf_processor.get_substantial_page_images(pdf_path, page_index):
+                    overlap = _box_overlap_fraction(crop.box_2d, image["box_2d"])
+                    if overlap > best_overlap:
+                        best_overlap = overlap
+                        best_xref = image["xref"]
+            if best_xref is not None and best_overlap >= 0.5:
+                assigned.add(best_xref)
+    return assigned
+
+
+def _anchor_page_1based(page_start: int | None, page_end: int | None) -> int:
+    if page_start is not None and page_end is not None:
+        return (page_start + page_end) // 2
+    return page_start or page_end or 1
+
+
+def _resolve_extract_crop_box(
+    pdf_path: Path,
+    page_index: int,
+    llm_box: list[int],
+) -> list[int]:
+    """Pick render box for an LLM-identified photo page (embedded bbox on mixed pages)."""
+    images_on_page = pdf_processor.get_substantial_page_images(pdf_path, page_index)
+    if not images_on_page:
+        return llm_box
+
+    best = max(
+        images_on_page,
+        key=lambda image: (_box_overlap_fraction(llm_box, image["box_2d"]), image["coverage"]),
+    )
+    return pdf_processor.resolve_photo_crop_box(pdf_path, page_index, best)
+
+
+def _recipe_text_anchor_y(
+    pdf_path: Path,
+    page_index: int,
+    extracted: ExtractedRecipe,
+) -> int | None:
+    """Return normalized vertical center (0-1000) for text identifying this recipe on a page."""
+    with fitz.open(pdf_path) as doc:
+        if page_index < 0 or page_index >= len(doc):
+            return None
+        page = doc[page_index]
+        rect = page.rect
+        if rect.height <= 0:
+            return None
+
+        needles: list[str] = []
+        for line in (extracted.ingredients or "").split("\n")[:3]:
+            folded = fold_text(line.strip())
+            if len(folded) >= 10:
+                needles.append(folded[:60])
+        for word in fold_text(extracted.title).split():
+            if len(word) >= 4:
+                needles.append(word)
+        if not needles:
+            return None
+
+        matched_ys: list[float] = []
+        for block in page.get_text("blocks"):
+            text = fold_text(str(block[4] if len(block) > 4 else ""))
+            if not text.strip():
+                continue
+            if any(needle in text or text in needle for needle in needles):
+                y0, y1 = block[1], block[3]
+                matched_ys.append((y0 + y1) / 2)
+
+        if not matched_ys:
+            return None
+        avg_y = sum(matched_ys) / len(matched_ys)
+        return int(round(avg_y / rect.height * 1000))
+
+
+def _page_matches_recipe(pdf_path: Path, page_index: int, extracted: ExtractedRecipe) -> bool:
+    """Return True when extractable page text looks like it belongs to this recipe."""
+    with fitz.open(pdf_path) as doc:
+        if page_index < 0 or page_index >= len(doc):
+            return False
+        text = fold_text(doc[page_index].get_text())
+
+    title_words = [w for w in fold_text(extracted.title).split() if len(w) > 4]
+    if title_words and sum(1 for w in title_words if w in text) >= max(1, len(title_words) // 2):
+        return True
+
+    first_ingredient = (extracted.ingredients or "").split("\n")[0].strip()
+    if first_ingredient:
+        ing_fold = fold_text(first_ingredient[:60])
+        if len(ing_fold) >= 12 and ing_fold in text:
+            return True
+    return False
+
+
+def _gather_harvest_candidates(
+    pdf_path: Path,
+    page_indices: list[int],
+    assigned_xrefs: set[int],
+    *,
+    anchor_page_1based: int,
+    extracted: ExtractedRecipe,
+) -> list[tuple[int, pdf_processor.SubstantialPageImage]]:
+    """Collect unassigned substantial images, preferring inline recipe+photo pages."""
+    candidates: list[tuple[tuple[int, ...], int, pdf_processor.SubstantialPageImage]] = []
+    seen_xrefs: set[int] = set()
+    for page_index in page_indices:
+        page_num = page_index + 1
+        if page_num <= HARVEST_SKIP_PAGES:
+            continue
+        distance = abs(page_num - anchor_page_1based)
+        text_cov = pdf_processor.get_page_text_coverage(pdf_path, page_index)
+        text_rects = pdf_processor.get_page_text_rects(pdf_path, page_index)
+        page_images = sorted(
+            pdf_processor.get_substantial_page_images(pdf_path, page_index),
+            key=lambda image: -image["coverage"],
+        )
+        photo_only = text_cov < 0.05 and not text_rects
+        inline_page = not photo_only and bool(page_images)
+        matches_recipe = _page_matches_recipe(pdf_path, page_index, extracted)
+        multi_photo = len(page_images) > 1
+        recipe_anchor_y = _recipe_text_anchor_y(pdf_path, page_index, extracted) if multi_photo else None
+
+        for image in page_images:
+            xref = image["xref"]
+            if xref in assigned_xrefs or xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
+            box = image["box_2d"]
+            zone_distance = 999
+            if recipe_anchor_y is not None:
+                image_center_y = (box[0] + box[2]) // 2
+                zone_distance = abs(image_center_y - recipe_anchor_y)
+            sort_key = (
+                0 if matches_recipe else 1,
+                distance,
+                zone_distance if multi_photo else 0,
+                0 if photo_only and distance <= 1 else 1,
+                0 if inline_page and distance <= 2 else 1,
+                0 if photo_only else 1,
+                1 if multi_photo else 0,
+                0 if page_num >= anchor_page_1based else 1,
+                -int(image["coverage"] * 1000),
+                box[0],
+                box[1],
+            )
+            candidates.append((sort_key, page_index, image))
+
+    candidates.sort(key=lambda item: item[0])
+    return [(page_index, image) for _sort_key, page_index, image in candidates]
+
+
+def _attach_harvested_photo(
+    *,
+    store: RecipeStore,
+    publication_id: int,
+    recipe_id: int,
+    extracted: ExtractedRecipe,
+    pdf_path: Path,
+    page_index: int,
+    image: pdf_processor.SubstantialPageImage,
+    assigned_xrefs: set[int],
+) -> bool:
+    """Render a recipe photo crop and persist it on the extracted recipe."""
+    images_dir = store.get_images_dir(publication_id, recipe_id)
+    crop_box = pdf_processor.resolve_photo_crop_box(pdf_path, page_index, image)
+    if not _render_and_save_crop(
+        pdf_path=pdf_path,
+        page_index=page_index,
+        box_2d=crop_box,
+        images_dir=images_dir,
+        crop_index=1,
+        recipe_title=extracted.title,
+        recipe_id=recipe_id,
+    ):
+        return False
+
+    extracted.image_crops = [ImageCrop(chunk_page_index=page_index + 1, box_2d=crop_box)]
+    extracted.images_count = 1
+    _prune_extra_recipe_images(images_dir, extracted.images_count)
+    store.save_stage_output(publication_id, recipe_id, "extracted", extracted)
+    assigned_xrefs.add(image["xref"])
+    logger.info(
+        "Harvested photo xref %s from page %d for recipe '%s' (ID %d) box=%s",
+        image["xref"],
+        page_index + 1,
+        extracted.title,
+        recipe_id,
+        crop_box,
+    )
+    return True
+
+
+def harvest_embedded_photos(
+    store: RecipeStore,
+    publication_id: int,
+    pdf_path: Path,
+    assigned_xrefs: set[int] | None = None,
+    *,
+    force: bool = False,
+) -> int:
+    """Attach substantial embedded photos to imageless recipes without LLM page numbers."""
+    if assigned_xrefs is None:
+        assigned_xrefs = collect_assigned_xrefs(store, publication_id, pdf_path)
+
+    with fitz.open(pdf_path) as doc:
+        total_pages = len(doc)
+
+    attached = 0
+    recipe_ids = sorted(recipe_id for pub_id, recipe_id in store.find_all_recipes() if pub_id == publication_id)
+
+    for recipe_id in recipe_ids:
+        extracted = store.load_stage_output(publication_id, recipe_id, "extracted", ExtractedRecipe)
+        if not extracted:
+            continue
+        if not force and extracted.images_count > 0:
+            continue
+
+        page_windows = (
+            _page_window_indices(
+                extracted.page_start,
+                extracted.page_end,
+                total_pages,
+                before=HARVEST_WINDOW_BEFORE,
+                after=HARVEST_WINDOW_AFTER,
+            ),
+            _page_window_indices(
+                extracted.page_start,
+                extracted.page_end,
+                total_pages,
+                before=HARVEST_WINDOW_EXPAND_BEFORE,
+                after=HARVEST_WINDOW_EXPAND_AFTER,
+            ),
+        )
+
+        anchor = _anchor_page_1based(extracted.page_start, extracted.page_end)
+        chosen: tuple[int, pdf_processor.SubstantialPageImage] | None = None
+        for page_indices in page_windows:
+            candidates = _gather_harvest_candidates(
+                pdf_path,
+                page_indices,
+                assigned_xrefs,
+                anchor_page_1based=anchor,
+                extracted=extracted,
+            )
+            if candidates:
+                chosen = candidates[0]
+                break
+
+        if chosen is None:
+            continue
+
+        page_index, image = chosen
+        if _attach_harvested_photo(
+            store=store,
+            publication_id=publication_id,
+            recipe_id=recipe_id,
+            extracted=extracted,
+            pdf_path=pdf_path,
+            page_index=page_index,
+            image=image,
+            assigned_xrefs=assigned_xrefs,
+        ):
+            attached += 1
+
+    return attached
 
 
 def extract_publication_metadata(store: RecipeStore, publication_id: int) -> PublicationMetadata:
@@ -435,7 +775,9 @@ def strip_generic_recipe_images(store: RecipeStore, publication_id: int) -> int:
             hash_to_locations.setdefault(digest, []).append((recipe_id, img_path.name))
 
     generic_hashes = {
-        digest for digest, locations in hash_to_locations.items() if len({recipe_id for recipe_id, _ in locations}) >= 2
+        digest
+        for digest, locations in hash_to_locations.items()
+        if len({recipe_id for recipe_id, _ in locations}) >= GENERIC_IMAGE_MIN_RECIPES
     }
     if not generic_hashes:
         return 0
@@ -577,14 +919,6 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
                 if not is_valid_box_2d(crop.box_2d):
                     logger.warning(f"Dropped malformed image crop for recipe '{recipe.title}'")
                     continue
-                crop_page_index = start_idx + (crop.chunk_page_index - 1)
-                text_rects = pdf_processor.get_page_text_rects(pdf_path, crop_page_index)
-                if crop_bounds_text(crop.box_2d, text_rects):
-                    logger.info(
-                        f"Dropped image crop bounding recipe text "
-                        f"(full-bleed background with overlaid text) for recipe '{recipe.title}'"
-                    )
-                    continue
                 valid_crops.append(crop)
             recipe.image_crops = valid_crops
 
@@ -598,20 +932,23 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
                 images_dir = store.get_images_dir(publication_id, recipe_id)
                 for crop in valid_crops:
                     fitz_page_num = start_idx + (crop.chunk_page_index - 1)
+                    crop_box = _resolve_extract_crop_box(pdf_path, fitz_page_num, crop.box_2d)
                     if _render_and_save_crop(
                         pdf_path=pdf_path,
                         page_index=fitz_page_num,
-                        box_2d=crop.box_2d,
+                        box_2d=crop_box,
                         images_dir=images_dir,
                         crop_index=len(kept_crops) + 1,
                         recipe_title=recipe.title,
                         recipe_id=recipe_id,
                     ):
-                        kept_crops.append(crop)
+                        kept_crops.append(ImageCrop(chunk_page_index=crop.chunk_page_index, box_2d=crop_box))
                         assigned_photo_pages.add(fitz_page_num)
 
             recipe.image_crops = kept_crops
             recipe.images_count = len(kept_crops)
+            if kept_crops:
+                _prune_extra_recipe_images(store.get_images_dir(publication_id, recipe_id), recipe.images_count)
 
             store.save_stage_output(publication_id, recipe_id, "extracted", recipe)
             store.set_status(publication_id, recipe_id, RecipeStatus.EXTRACTED)
@@ -630,6 +967,11 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
     stripped = strip_generic_recipe_images(store, publication_id)
     if stripped:
         logger.info(f"Removed generic template images from {stripped} recipe(s) in Publication {publication_id}")
+
+    assigned_xrefs = collect_assigned_xrefs(store, publication_id, pdf_path)
+    harvested = harvest_embedded_photos(store, publication_id, pdf_path, assigned_xrefs)
+    if harvested:
+        logger.info(f"Harvested embedded photos for {harvested} recipe(s) in Publication {publication_id}")
 
     # When the LLM cannot read a TOC count, backfill from the actual extraction result.
     metadata = store.load_publication_metadata(publication_id)

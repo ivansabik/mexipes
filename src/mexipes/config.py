@@ -16,13 +16,19 @@ class StageConfig(BaseModel):
 
 class ImageQualityConfig(BaseModel):
     enabled: bool = True
-    min_sharpness: float = 120.0
+    min_sharpness: float = 45.0
     min_brightness: float = 90.0
     max_brightness: float = 250.0
+    # Text-page rejection: scanned/rendered pages of recipe text are dominated by a
+    # single background tone and are nearly monochrome, unlike food photographs.
+    reject_text_pages: bool = True
+    text_page_min_background: float = 0.55
+    text_page_max_colorfulness: float = 35.0
 
 
 class Settings(BaseSettings):
     data_dir: Path = Path("./data")
+    reviews_dir: Path = Path("./data/reviews")
 
     extraction: StageConfig = StageConfig(model="gemini/gemini-2.5-flash")
     metadata: StageConfig = StageConfig(model="gemini/gemini-2.5-flash")
@@ -33,6 +39,8 @@ class Settings(BaseSettings):
     localize: StageConfig = StageConfig(model="gemini/gemini-2.5-flash", temperature=0.3)
     tagging: StageConfig = StageConfig(model="gemini/gemini-2.5-flash")
     substitution: StageConfig = StageConfig(model="gemini/gemini-2.5-flash")
+    review: StageConfig = StageConfig(model="gemini/gemini-2.5-pro", temperature=0.0)
+    consolidate: StageConfig = StageConfig(model="gemini/gemini-2.5-pro", temperature=0.1)
     image_quality: ImageQualityConfig = ImageQualityConfig()
 
     model_config = SettingsConfigDict(env_prefix="MEXIPES_", env_file=".env", env_nested_delimiter="_", extra="ignore")

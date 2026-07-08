@@ -68,13 +68,12 @@ def ensure_total_time(store: RecipeStore, publication_id: int, recipe_id: int) -
         except (json.JSONDecodeError, OSError):
             pass
 
-    logger.info("Inferring total_time for Publication %s, Recipe %s...", publication_id, recipe_id)
-    rewritten.total_time = _infer_total_time_from_recipe(rewritten)
+    # No explicit time in extraction or legacy tags — do not estimate from steps.
+    rewritten.total_time = "Desconocido"
     store.save_stage_output(publication_id, recipe_id, "rewritten", rewritten)
     logger.info(
-        "Inferred total_time for Publication %s, Recipe %s: %s",
+        "Set total_time to Desconocido for Publication %s, Recipe %s (no explicit source time)",
         publication_id,
         recipe_id,
-        rewritten.total_time,
     )
     return rewritten

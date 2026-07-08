@@ -250,3 +250,44 @@ class RecipeStore:
                 with contextlib.suppress(ValueError):
                     max_id = max(max_id, int(entry.name))
         return max_id + 1
+
+
+class ReadOnlyRecipeStore(RecipeStore):
+    """Read-only view over an existing store: raises on writes, never creates files or dirs.
+
+    Used by `mexipes review` so reviewing prod publications cannot mutate
+    ``data/publications`` (not even incidentally via directory creation or
+    status-index rebuild persistence).
+    """
+
+    def __init__(self, data_dir: Path):
+        # Intentionally skip RecipeStore.__init__: it creates directories.
+        self.data_dir = Path(data_dir)
+
+    def _read_only_error(self, operation: str) -> PermissionError:
+        return PermissionError(f"ReadOnlyRecipeStore forbids '{operation}' (data_dir={self.data_dir})")
+
+    def get_publication_dir(self, publication_id: int) -> Path:
+        return self.data_dir / "publications" / str(publication_id)
+
+    def get_recipe_dir(self, publication_id: int, recipe_id: int) -> Path:
+        return self.get_publication_dir(publication_id) / "recipes" / str(recipe_id)
+
+    def get_images_dir(self, publication_id: int, recipe_id: int) -> Path:
+        return self.get_recipe_dir(publication_id, recipe_id) / "images"
+
+    def _save_status_index(self, publication_id: int, index: dict[str, str]) -> None:
+        # Rebuilds stay in-memory only; never persist _index.json from a read-only view.
+        return
+
+    def save_publication_metadata(self, publication_id: int, metadata: PublicationMetadata) -> None:
+        raise self._read_only_error("save_publication_metadata")
+
+    def save_stage_output(self, publication_id: int, recipe_id: int, stage_name: str, data: BaseModel) -> None:
+        raise self._read_only_error("save_stage_output")
+
+    def set_status(self, publication_id: int, recipe_id: int, status: RecipeStatus, error: str | None = None) -> None:
+        raise self._read_only_error("set_status")
+
+    def get_next_recipe_id(self, publication_id: int) -> int:
+        raise self._read_only_error("get_next_recipe_id")

@@ -1,0 +1,15 @@
+[
+    {
+        "name": "ocr_artifact",
+        "publication_id": 1,
+        "recipe_id": 1,
+        "expected_finding_type": "ocr_artifact",
+        "evidence": "machaca-\\ndos"
+    },
+    {
+        "name": "clean_recipe",
+        "publication_id": 1,
+        "recipe_id": 2,
+        "expected_findings": []
+    }
+]

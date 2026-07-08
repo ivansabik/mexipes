@@ -33,3 +33,6 @@ all_pdfs/
 recipes.json
 recipes_facets.json
 recipes_similar.json
+
+# Review artifacts (regenerate with mexipes review)
+data/reviews/

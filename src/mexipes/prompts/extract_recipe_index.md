@@ -8,7 +8,7 @@ Your task is to extract a structured list of **recipe entries** from the provide
 
 For each indexed **recipe** (actual dish with a preparation), output:
 - **`title`**: Canonical recipe title. When the index shows a short name and descriptive subtitle on separate lines (e.g. "ESQUITES" above "Granos de maíz cocidos"), combine as `"Esquites - Granos de maíz cocidos"`. Use title case for the short name and sentence case for the subtitle.
-- **`page`**: The **1-based PDF page number** of the recipe (the page where ingredients/instructions appear, NOT the companion photo page). Use the page position within the full PDF document.
+- **`page`**: The **1-based PDF page number** of the recipe (the page where ingredients/instructions appear, NOT the companion photo page). Use the page position within the full PDF document — **not** the printed book page number shown in the ToC/footer. If the index lists book page "15" but that content is on PDF file page 13, store `13`.
 - **`section`**: Chapter or section heading if visible (e.g. "STREET FOOD Y APERITIVOS"), otherwise null.
 
 ## Include

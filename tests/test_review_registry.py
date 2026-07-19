@@ -20,3 +20,11 @@ def test_resolve_reviewers_filters_by_name() -> None:
 def test_resolve_reviewers_rejects_unknown() -> None:
     with pytest.raises(ValueError, match="Unknown review persona"):
         resolve_reviewers("extraction,nope")
+
+
+def test_extraction_guidelines_forbid_book_page_false_positives() -> None:
+    guidelines = " ".join(REVIEWERS["extraction"].guidelines)
+
+    assert "PDF document indices" in guidelines
+    assert "printed" in guidelines
+    assert "recipe_index" in guidelines

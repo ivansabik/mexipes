@@ -28,7 +28,13 @@ REVIEWERS: dict[str, Reviewer] = {
             "Flag OCR artifacts: broken hyphenation, impossible words, stray headers, or meaning-changing accent errors.",
             "Flag missing content and wrong page continuation by checking ingredients/instructions against the PDF.",
             "Check image metadata against the page: images_count, image_crops, and crops that include text/decorations.",
-            "`page_start` / `page_end` are 1-based PDF document indices, NOT printed page numbers in the PDF footer — do not flag mismatches between them.",
+            (
+                "Page fields are 1-based PDF document indices (file page 1 = first PDF page), never printed "
+                "book/footer page numbers. Do NOT flag `page_start`/`page_end` when they differ from a "
+                "printed corner/footer number or from a `recipe_index[].page` that merely echoes the ToC "
+                "book page. Attached PDF pages were sliced by `page_start`/`page_end` — if the recipe "
+                "text is on those attachments, the page fields are correct."
+            ),
             "Prefer concrete evidence over speculation; cite PDF page and exact text when possible.",
         ),
     ),

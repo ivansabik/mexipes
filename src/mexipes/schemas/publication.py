@@ -3,15 +3,18 @@ from pydantic import BaseModel, Field
 
 class RegionalSection(BaseModel):
     region_name: str
-    page_start: int
-    page_end: int | None = None
+    page_start: int = Field(..., description="1-based PDF document page index where the section starts")
+    page_end: int | None = Field(None, description="1-based PDF document page index where the section ends")
 
 
 class RecipeIndexEntry(BaseModel):
     """A recipe entry from the publication table of contents / índice."""
 
     title: str = Field(..., description="Canonical recipe title, e.g. 'Esquites - Granos de maíz cocidos'")
-    page: int | None = Field(None, description="1-based PDF page number from the index")
+    page: int | None = Field(
+        None,
+        description="1-based PDF document page index (not the printed book/ToC page number)",
+    )
     section: str | None = Field(None, description="Chapter or section heading, if visible")
 
 

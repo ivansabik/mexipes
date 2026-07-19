@@ -82,6 +82,7 @@ extract → rewrite → describe → tag → localize → substitute → ready
 17. **Never commit `.env`.** Already in `.gitignore`. Use `.env.example` as template.
 18. **Review is advisory and fully isolated.** `mexipes review` never writes to `data/publications/`: processed publications are read via `ReadOnlyRecipeStore`, sampled corpus PDFs are ingested/processed inside the run's `_workspace/` subdirectory, and all artifacts land under `data/reviews/review_<timestamp>_<seed>/`. Findings are never auto-applied.
 19. **Review samples by default.** `mexipes review` reviews 3 random publications x 3 random recipes unless `--publications` / `--recipes-per-pub` / pinning options override it.
+20. **Page fields are PDF document indices, not book pages.** `page_start` / `page_end`, `recipe_index[].page`, and regional section ranges are 1-based positions in the PDF file. Printed footer/corner numbers and ToC book pages often differ by a fixed offset — that is expected. Reviewers must not flag those mismatches; extraction that records the PDF page is correct.
 
 ## Common commands
 

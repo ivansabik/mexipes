@@ -128,6 +128,8 @@ Exits with code 1 if any **errors** are found; warnings alone still pass.
 
 `mexipes review` samples generated pipeline outputs, attaches the relevant source PDF pages, and asks specialized reviewer personas to produce evidence-backed findings. It is advisory and human-in-the-loop: it writes review artifacts only and never touches `data/publications/` — processed publications are read through a read-only store view.
 
+Page fields (`page_start` / `page_end`, and publication `recipe_index` pages) are **1-based PDF document indices**, not printed book page numbers. A recipe on PDF page 13 that shows "15" in the footer is correct; do not treat book/ToC page mismatches as extraction errors.
+
 ```bash
 mexipes review                              # 3 random publications x 3 random recipes
 mexipes review --publications 5 --recipes-per-pub 4 --seed 42

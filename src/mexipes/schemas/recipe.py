@@ -43,8 +43,14 @@ class ExtractedRecipe(BaseModel):
     )
     ingredients: str = Field(..., description="List of ingredients in Spanish")
     instructions: str = Field(..., description="Preparation steps in Spanish")
-    page_start: int | None = None
-    page_end: int | None = None
+    page_start: int | None = Field(
+        None,
+        description="1-based PDF document page index where the recipe starts (not the printed book page)",
+    )
+    page_end: int | None = Field(
+        None,
+        description="1-based PDF document page index where the recipe ends (not the printed book page)",
+    )
     images_count: int = 0
     image_crops: list[ImageCrop] = Field(default_factory=list)
     has_multiple_recipes: bool = False

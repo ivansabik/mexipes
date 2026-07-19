@@ -21,6 +21,7 @@ from mexipes.llm import call_llm, load_prompt
 from mexipes.pipeline import pdf_processor
 from mexipes.pipeline.orchestrator import run_pipeline_until_ready
 from mexipes.review.models import (
+    TRIAGE_NOTES_PLACEHOLDER,
     ConsolidatedReview,
     ModelRunConfig,
     RecipeReviewResult,
@@ -431,6 +432,8 @@ def _run_single_reviewer(
         finding.persona = reviewer.name
         finding.finding_key = None
         finding.populate_finding_key()
+        # Reserved for post-agentic human/agent triage; never keep LLM-filled values.
+        finding.triage_notes = TRIAGE_NOTES_PLACEHOLDER
         normalized_findings.append(finding)
     result.findings = normalized_findings
     return result
@@ -455,7 +458,7 @@ def _consolidate_findings(metadata: ReviewRunMetadata, findings: list[ReviewFind
     template = Template(load_prompt("review_consolidate.md"))
     prompt = template.render(
         metadata_json=metadata.model_dump_json(indent=2),
-        findings_json=_json_dumps([finding.model_dump() for finding in findings]),
+        findings_json=_json_dumps([finding.model_dump(exclude={"triage_notes"}) for finding in findings]),
     )
     try:
         consolidated = call_llm(
@@ -505,7 +508,8 @@ def _write_markdown(path: Path, artifact: ReviewRunArtifact) -> None:
         for finding in artifact.findings:
             lines.append(
                 f"- [{finding.severity}] {finding.publication_id}:{finding.recipe_id} "
-                f"{finding.stage}.{finding.field} ({finding.finding_type}): {finding.issue}"
+                f"{finding.stage}.{finding.field} ({finding.finding_type}): {finding.issue} "
+                f"[triage_notes: {finding.triage_notes}]"
             )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

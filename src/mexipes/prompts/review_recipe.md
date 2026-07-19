@@ -20,6 +20,7 @@ Your job is to review ONE recipe's generated pipeline outputs and return only st
 - Pipeline stages are: extract, rewrite, describe, tag, localize, substitute. Do not reference non-existent stages (e.g. chunking, layout_analysis, slicer).
 - **PDF page vs book page (critical):** `page_start`, `page_end`, `recipe_index[].page`, and regional section page ranges are **1-based PDF document indices** (position in the PDF file). They are **not** the printed page numbers in footers/corners or the book-page numbers listed in a table of contents. Cookbook PDFs often have a constant offset (e.g. PDF page 13 shows printed "15"). **Never** emit a finding that `page_start` is wrong solely because a printed number or ToC book page differs. Only flag pages when the recipe content is missing from the attached PDF pages or clearly belongs on a different PDF page.
 - Canonical `total_time` / `total_time_en` buckets include `2+ horas` / `2+ hours` — these are valid, not errors.
+- Do not invent `triage_notes`. That field is reserved for post-review human/agent triage and must remain `PLACEHOLDER` if present in the schema.
 
 ## Finding Types
 

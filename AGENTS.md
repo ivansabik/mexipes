@@ -152,10 +152,12 @@ mexipes recommend --export recipes.json       # build similarity index
    - `mexipes review --publication 1 --recipes 1-25 --no-process`
    - `mexipes review --only-dq --personas extraction,taxonomy`
 4. Read the run-stamped artifact under `data/reviews/review_<timestamp>_<seed>/`.
-5. Human triages findings:
+5. Human (or a follow-up agent) triages findings by editing each finding's `triage_notes` (starts as `PLACEHOLDER`):
+   - discard / false positive → note why and ignore
+   - enrich → add context, proposed fix, or narrower scope
    - one-off data issue → rerun a stage, e.g. `mexipes run --recipe 1:2 --stage tag`
    - systemic issue → edit prompt, DQ rule, or code
-   - weak/subjective issue → ignore or leave as `human_review`
+   - weak/subjective issue → ignore or leave as consolidator `human_review`
 6. Re-run affected stages, then `mexipes dq`, then `mexipes review` again on a fresh seeded sample.
 
 Review artifacts are gitignored and isolated from pipeline outputs. Review models are configured via `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`. Do not build auto-apply behavior without first adding stage-output versioning/backups and downstream invalidation.

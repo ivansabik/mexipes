@@ -144,10 +144,10 @@ Human-in-the-loop workflow:
 1. Generate or update data with `mexipes run` / `mexipes all`.
 2. Run `mexipes dq`.
 3. Run `mexipes review`.
-4. Human triages the review artifact:
+4. Human (or a follow-up agent) triages findings in `consolidated.json`: each finding has `triage_notes` set to `PLACEHOLDER` until filled. Use it to discard false positives, enrich context, or propose a concrete change.
    - one-off data issue → targeted rerun, e.g. `mexipes run --recipe 1:2 --stage tag`
    - systemic issue → prompt, DQ rule, or code change
-   - weak/subjective issue → ignore or keep as `human_review`
+   - weak/subjective issue → ignore or keep as consolidator `human_review`
 5. Re-run affected stages, then `dq`, then `review` on a fresh seeded sample.
 
 Judge models are configured independently with `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`.

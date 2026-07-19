@@ -14,6 +14,9 @@ SuggestedAction = Literal[
     "no_action",
 ]
 
+# Reserved until a human or follow-up agent triages the finding (enrich / discard / propose fix).
+TRIAGE_NOTES_PLACEHOLDER = "PLACEHOLDER"
+
 
 class ReviewFinding(BaseModel):
     """A single evidence-backed quality finding for one recipe field/stage."""
@@ -38,6 +41,13 @@ class ReviewFinding(BaseModel):
     finding_key: str | None = Field(
         None,
         description="Stable key derived from publication, recipe, stage, field, and finding_type",
+    )
+    triage_notes: str = Field(
+        default=TRIAGE_NOTES_PLACEHOLDER,
+        description=(
+            "Post-agentic human/agent triage notes. Starts as PLACEHOLDER; later filled to enrich, "
+            "discard, or propose a change based on this finding. Not written by the review LLM."
+        ),
     )
 
     @model_validator(mode="after")

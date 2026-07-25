@@ -43,7 +43,7 @@ def test_sanitize_dedupes_and_drops_unknown():
 def test_sanitize_drops_unknown_key_ingredients():
     data = _minimal_tag_data(key_ingredient=["Nuez", "Canela", "Jitomate"])
     cleaned = vocab.sanitize_recipe_tags_data(data)
-    assert cleaned["key_ingredient"] == ["Jitomate"]
+    assert cleaned["key_ingredient"] == ["Canela", "Jitomate"]
 
 
 def test_sanitize_caps_key_ingredient_at_three():

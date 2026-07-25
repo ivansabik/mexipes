@@ -148,6 +148,13 @@ KEY_INGREDIENT: list[TagTerm] = [
     ("hominy", "Maíz Cacahuazintle", "Hominy"),
     ("agave", "Agave", "Agave"),
     ("vanilla", "Vainilla", "Vanilla"),
+    ("sweet-potato", "Camote", "Sweet Potato"),
+    ("cauliflower", "Coliflor", "Cauliflower"),
+    ("cucumber", "Pepino", "Cucumber"),
+    ("cinnamon", "Canela", "Cinnamon"),
+    ("milk", "Leche", "Milk"),
+    ("almond", "Almendra", "Almond"),
+    ("flaxseed", "Linaza", "Flaxseed"),
 ]
 
 BUDGET: list[TagTerm] = [

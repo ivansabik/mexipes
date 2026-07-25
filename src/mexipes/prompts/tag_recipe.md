@@ -11,8 +11,14 @@ Eres un experto en gastronomía, cultura y artes culinarias mexicanas. Tu tarea 
 ## Categorías de la Taxonomía:
 <!-- TAG_TAXONOMY -->
 
+## Reglas para `difficulty`:
+- Usa el vocabulario canónico: `Fácil`, `Intermedio`, `Avanzado`.
+- Si el PDF dice `Bajo`, etiqueta `Fácil`. Si dice `Medio`, etiqueta `Intermedio`. Si dice `Alto` o `Difícil`, etiqueta `Avanzado`.
+
 ## Reglas para `dish_format`:
-- Usa `dish_format` (máximo 2) SOLO cuando aplica un formato reconocible (p. ej. `Tacos`, `Mole`, `Pozole`, `Sopa`, `Caldo`, `Tamales`).
+- Usa `dish_format` (máximo 2) SOLO cuando aplica un formato reconocible (p. ej. `Tacos`, `Mole`, `Pozole`, `Sopa`, `Caldo`, `Tamales`, `Tostadas`, `Bebida`, `Postre`).
+- Cuando el título nombra claramente un formato del vocabulario (`Tostadas de…`, `Arroz con leche`, `Cóctel de…`), asigna el formato correspondiente.
+- Para ensaladas u otros platos sin formato específico en el vocabulario, usa `Otro`.
 - NO etiquetes `Salsa` cuando la salsa es solo un componente del plato (p. ej. "Pollo en salsa de cacahuate" NO es `Salsa`).
 - NO uses `Sopa` solo porque el título contiene "sopa" si el método describe un plato sólido horneado o en capas (p. ej. timbales, pasteles salados).
 - Si el título está encabezado por la proteína o la técnica ("Pollo en…", "Pescado a la…"), asigna `primary_protein` y `cooking_method`; asigna `dish_format` solo si corresponde un formato real.
@@ -21,7 +27,10 @@ Eres un experto en gastronomía, cultura y artes culinarias mexicanas. Tu tarea 
 
 ## Reglas para `key_ingredient`:
 - Prioriza ingredientes nombrados en el **título** de la receta (máximo 3, solo vocabulario controlado).
+- Asigna al menos uno cuando el título o ingredientes principales mapean claramente al vocabulario (p. ej. `Camote`, `Coliflor`, `Pepino`, `Leche`, `Chocolate`).
+- NO uses proteínas animales aquí (`Cerdo`, `Pescado`, `Pollo`) — van en `primary_protein`.
 - NO uses guarniciones menores como `key_ingredient` (p. ej. queso en polvo para servir).
+- NO uses metáforas culinarias del método como ingrediente (p. ej. coliflor licuada como `Arroz`, masa de relleno como `Masa` cuando los ingredientes reales son camote y pollo).
 - Si el título nombra un ingrediente central que no está en el vocabulario, elige el término controlado más cercano (p. ej. `Frijol` + `Chile` para tacos de frijol con chorizo).
 
 ## Reglas para `primary_protein`:

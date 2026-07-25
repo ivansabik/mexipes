@@ -19,6 +19,7 @@ from mexipes.schemas.substitutions import SubstitutionsResult
 from mexipes.schemas.tags import RecipeTagSet
 from mexipes.storage import RecipeStore
 from mexipes.text_utils import has_section_headers, has_unicode_fractions
+from mexipes.unit_localization import find_suspicious_volume_upgrades
 
 logger = logging.getLogger(__name__)
 
@@ -520,8 +521,30 @@ def _validate_tag_set(
             )
 
 
-def _validate_tags(report: DQReport, pub_id: int, recipe_id: int, tags: RecipeTagSet) -> None:
+def _validate_tags(
+    report: DQReport,
+    pub_id: int,
+    recipe_id: int,
+    tags: RecipeTagSet,
+    *,
+    recipe_title: str | None = None,
+) -> None:
     _validate_tag_set(report, pub_id, recipe_id, tags, stage="tags", lang="es")
+    if recipe_title and not tags.key_ingredient:
+        title_lower = recipe_title.lower()
+        for term in sorted(vocab.es_values("key_ingredient"), key=len, reverse=True):
+            if term.lower() in title_lower:
+                report.add(
+                    DQIssue(
+                        publication_id=pub_id,
+                        recipe_id=recipe_id,
+                        stage="tags",
+                        field="key_ingredient",
+                        severity="warning",
+                        message=f"No key_ingredient assigned but title mentions '{term}'",
+                    )
+                )
+                break
 
 
 def _validate_localized_tags(report: DQReport, pub_id: int, recipe_id: int, tags: RecipeTagSet) -> None:
@@ -569,6 +592,19 @@ def _validate_cross_stage(
                 message=(f"Title changed between extraction and rewrite: '{extracted.title}' → '{rewritten.title}'"),
             )
         )
+
+    if rewritten and localized:
+        for msg in find_suspicious_volume_upgrades(rewritten.ingredients, localized.ingredients_en or ""):
+            report.add(
+                DQIssue(
+                    publication_id=pub_id,
+                    recipe_id=recipe_id,
+                    stage="localized",
+                    field="ingredients_en",
+                    severity="error",
+                    message=msg,
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -746,7 +782,8 @@ def run_dq_checks(
             if localized:
                 _validate_localized(report, pub_id, recipe_id, localized)
             if tags:
-                _validate_tags(report, pub_id, recipe_id, tags)
+                title_for_tags = rewritten.title if rewritten else extracted.title
+                _validate_tags(report, pub_id, recipe_id, tags, recipe_title=title_for_tags)
             if localized_tags:
                 _validate_localized_tags(report, pub_id, recipe_id, localized_tags)
             if images_desc:

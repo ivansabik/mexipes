@@ -28,3 +28,16 @@ def test_extraction_guidelines_forbid_book_page_false_positives() -> None:
     assert "PDF document indices" in guidelines
     assert "printed" in guidelines
     assert "recipe_index" in guidelines
+    assert "food photograph" in guidelines
+
+
+def test_fidelity_guidelines_allow_verbatim_functional_rewrite() -> None:
+    guidelines = " ".join(REVIEWERS["fidelity"].guidelines)
+    assert "anecdotes" in guidelines.lower() or "headnotes" in guidelines.lower()
+    assert "style-only" in guidelines.lower()
+
+
+def test_taxonomy_guidelines_separate_protein_from_key_ingredient() -> None:
+    guidelines = " ".join(REVIEWERS["taxonomy"].guidelines)
+    assert "primary_protein" in guidelines
+    assert "key_ingredient" in guidelines

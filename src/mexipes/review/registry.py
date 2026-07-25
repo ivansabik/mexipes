@@ -27,7 +27,11 @@ REVIEWERS: dict[str, Reviewer] = {
             "Check whether the extraction is a complete recipe, not a section header or editorial prose.",
             "Flag OCR artifacts: broken hyphenation, impossible words, stray headers, or meaning-changing accent errors.",
             "Flag missing content and wrong page continuation by checking ingredients/instructions against the PDF.",
-            "Check image metadata against the page: images_count, image_crops, and crops that include text/decorations.",
+            (
+                "Check image metadata against the page: images_count and image_crops. Flag crops that "
+                "include recipe body text on paper/white backgrounds or nutrition tables — not title/caption "
+                "text overlaid on a food photograph."
+            ),
             (
                 "Page fields are 1-based PDF document indices (file page 1 = first PDF page), never printed "
                 "book/footer page numbers. Do NOT flag `page_start`/`page_end` when they differ from a "
@@ -47,9 +51,9 @@ REVIEWERS: dict[str, Reviewer] = {
         guidelines=(
             "Compare extracted.json to rewritten.json and the attached source PDF pages.",
             "Ingredients must remain verbatim in Spanish.",
-            "Instructions must preserve the same steps, order, techniques, quantities, and functional details.",
-            "Rewritten text must not add tips, serving suggestions, commentary, or invented details.",
-            "Title, yield, and total time must not drift. When extracted total_time is null, rewritten may legitimately show `Desconocido` after inference — that is not rewrite drift.",
+            "Rewrite deletes anecdotes/headnotes and keeps functional steps; do not flag style-only paraphrase of unprotected procedural text.",
+            "Flag rewrite issues only when protected narrative remains, or functional steps/options/quantities were dropped or invented.",
+            "Title, yield, and total time must not drift. When extracted total_time is null, rewritten may legitimately show `Desconocido` — that is not rewrite drift.",
         ),
     ),
     "taxonomy": Reviewer(
@@ -62,6 +66,7 @@ REVIEWERS: dict[str, Reviewer] = {
             "Review tags.json against the Spanish recipe text and attached source PDF.",
             "Focus on semantic correctness, not just vocabulary validity.",
             "Check primary_protein, dietary, course, meal_type, dish_format, cooking_method, key_ingredient, allergens, and region.",
+            "Proteins belong in primary_protein, not key_ingredient. key_ingredient uses produce/staple vocab only.",
             "Do not over-tag. Prefer canonical vocabulary and respect max list lengths.",
             "Treat inherited publication tags as context, not proof if recipe evidence contradicts them.",
         ),
@@ -76,7 +81,8 @@ REVIEWERS: dict[str, Reviewer] = {
             "Compare rewritten.json to localized.json for missing ingredients, changed quantities, skipped steps, or awkward translations.",
             "Enforce canonical total_time_en mapping: Under 30 min, 30-60 min, 1-2 hours, 2+ hours, Unknown, N/A.",
             "Review substitutions.json against the pantry philosophy: default empty; only substitute genuinely hard-to-source ingredients.",
-            "Flag unnecessary substitutions and missing substitutions separately.",
+            "Do not flag localize name/unit translations as missing substitutions. Flag unnecessary substitutions and missing pantry subs separately.",
+            "Watch for unit abbreviation errors (e.g. Spanish `T`/taza rendered as quart instead of cup).",
         ),
     ),
 }

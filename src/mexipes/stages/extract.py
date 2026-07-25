@@ -13,6 +13,7 @@ from mexipes.inherited_tags import region_claim_supported, sanitize_inherited_ta
 from mexipes.llm import call_llm, load_prompt
 from mexipes.pipeline import pdf_processor
 from mexipes.recipe_validation import (
+    crop_bounds_text,
     filter_index_entries_for_chunk,
     format_index_context,
     is_editorial_extraction,
@@ -48,6 +49,7 @@ HARVEST_WINDOW_BEFORE = 2
 HARVEST_WINDOW_AFTER = 1
 HARVEST_WINDOW_EXPAND_BEFORE = 4
 HARVEST_WINDOW_EXPAND_AFTER = 4
+NEAR_FULL_PAGE_MARGIN = 50
 HARVEST_SKIP_PAGES = 3  # cover/promo pages before recipe content
 
 
@@ -442,6 +444,11 @@ def _anchor_page_1based(page_start: int | None, page_end: int | None) -> int:
     return page_start or page_end or 1
 
 
+def _is_near_full_page(box: list[int], margin: int = NEAR_FULL_PAGE_MARGIN) -> bool:
+    ymin, xmin, ymax, xmax = box
+    return ymin <= margin and xmin <= margin and ymax >= 1000 - margin and xmax >= 1000 - margin
+
+
 def _resolve_extract_crop_box(
     pdf_path: Path,
     page_index: int,
@@ -452,11 +459,34 @@ def _resolve_extract_crop_box(
     if not images_on_page:
         return llm_box
 
-    best = max(
-        images_on_page,
-        key=lambda image: (_box_overlap_fraction(llm_box, image["box_2d"]), image["coverage"]),
-    )
-    return pdf_processor.resolve_photo_crop_box(pdf_path, page_index, best)
+    text_cov = pdf_processor.get_page_text_coverage(pdf_path, page_index)
+    text_rects = pdf_processor.get_page_text_rects(pdf_path, page_index)
+
+    if _is_near_full_page(llm_box) and text_cov >= 0.05:
+        best = max(images_on_page, key=lambda image: image["coverage"])
+    else:
+        best = max(
+            images_on_page,
+            key=lambda image: (_box_overlap_fraction(llm_box, image["box_2d"]), image["coverage"]),
+        )
+    crop_box = pdf_processor.resolve_photo_crop_box(pdf_path, page_index, best)
+
+    if not text_rects or not crop_bounds_text(crop_box, text_rects):
+        return crop_box
+
+    # Full-page or loose LLM box on split layouts: prefer the largest embedded photo only.
+    for image in sorted(images_on_page, key=lambda img: -img["coverage"]):
+        candidate = pdf_processor.resolve_photo_crop_box(pdf_path, page_index, image)
+        if not crop_bounds_text(candidate, text_rects):
+            return candidate
+
+    return crop_box
+
+
+def _crop_includes_recipe_text_panel(pdf_path: Path, page_index: int, box_2d: list[int]) -> bool:
+    """True when a crop box overlaps recipe body text on paper (not title-on-photo overlay)."""
+    text_rects = pdf_processor.get_page_text_rects(pdf_path, page_index)
+    return bool(text_rects and crop_bounds_text(box_2d, text_rects))
 
 
 def _recipe_text_anchor_y(
@@ -588,7 +618,14 @@ def _attach_harvested_photo(
 ) -> bool:
     """Render a recipe photo crop and persist it on the extracted recipe."""
     images_dir = store.get_images_dir(publication_id, recipe_id)
-    crop_box = pdf_processor.resolve_photo_crop_box(pdf_path, page_index, image)
+    crop_box = _resolve_extract_crop_box(pdf_path, page_index, image["box_2d"])
+    if _crop_includes_recipe_text_panel(pdf_path, page_index, crop_box):
+        logger.info(
+            "Skipped harvested crop bounding recipe text panel for '%s' (Recipe %d)",
+            extracted.title,
+            recipe_id,
+        )
+        return False
     if not _render_and_save_crop(
         pdf_path=pdf_path,
         page_index=page_index,
@@ -933,6 +970,13 @@ def extract_publication_recipes(store: RecipeStore, publication_id: int) -> list
                 for crop in valid_crops:
                     fitz_page_num = start_idx + (crop.chunk_page_index - 1)
                     crop_box = _resolve_extract_crop_box(pdf_path, fitz_page_num, crop.box_2d)
+                    if _crop_includes_recipe_text_panel(pdf_path, fitz_page_num, crop_box):
+                        logger.info(
+                            "Discarded crop bounding recipe text panel for '%s' (Recipe %d)",
+                            recipe.title,
+                            recipe_id,
+                        )
+                        continue
                     if _render_and_save_crop(
                         pdf_path=pdf_path,
                         page_index=fitz_page_num,

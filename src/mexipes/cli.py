@@ -139,6 +139,55 @@ def run_all(
 
 
 @app.command()
+def workflow(
+    publication_id: int | None = typer.Option(
+        None, "--publication", "-p", help="Limit processing and review to one publication"
+    ),
+    batch_size: int = typer.Option(
+        10,
+        "--batch",
+        help="Max recipes advanced per batch (0 = unlimited)",
+    ),
+    max_loops: int = typer.Option(
+        3,
+        "--max-loops",
+        help="Max automatic stage-rerun fix iterations after review",
+    ),
+):
+    """Process to ready, review, auto-rerun stages (capped), optionally trial a prompt change."""
+    store = get_store()
+    from mexipes.graph import run_workflow
+
+    typer.echo("Running LangGraph workflow (process → review → fix loop → optional prompt trial)...")
+    final = run_workflow(
+        store,
+        publication_id=publication_id,
+        batch_size=batch_size,
+        max_loops=max_loops,
+    )
+
+    stop_reason = final.get("stop_reason") or "clean"
+    typer.echo(f"Stop reason: {stop_reason}")
+    if final.get("review_dir"):
+        typer.echo(f"Last review dir: {final['review_dir']}")
+    typer.echo(f"Fixes applied: {final.get('fixes_applied') or 0}")
+
+    trial = final.get("prompt_trial")
+    if trial:
+        if trial.get("passed"):
+            typer.echo("")
+            typer.echo(f"Prompt trial passed for {trial.get('prompt_file')} on recipes {trial.get('recipe_ids')}.")
+            typer.echo("Candidate diff (not applied to src/mexipes/prompts/):")
+            typer.echo(trial.get("diff") or "")
+        else:
+            typer.echo(f"Prompt trial failed: {trial.get('reason')}")
+
+    dq_notes = final.get("dq_notes") or []
+    if dq_notes:
+        typer.echo("DQ suggestions were not tested and are not ready to apply.")
+
+
+@app.command()
 def status(
     publication_id: int | None = typer.Option(
         None, "--publication", "-p", help="Show status for a specific publication ID"

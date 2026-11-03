@@ -2,6 +2,9 @@ import base64
 import importlib.resources
 import logging
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 import instructor
@@ -14,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 _TRANSIENT_API_ERRORS = (ServiceUnavailableError, RateLimitError, Timeout, APIConnectionError)
 _DEFAULT_REQUEST_TIMEOUT = 120
+_prompt_dir_override: ContextVar[Path | None] = ContextVar("mexipes_prompt_dir_override", default=None)
 
 
 def _is_transient_api_error(exc: BaseException) -> bool:
@@ -33,8 +37,22 @@ def _is_transient_api_error(exc: BaseException) -> bool:
 client = instructor.from_litellm(completion, mode=instructor.Mode.JSON)
 
 
+@contextmanager
+def prompt_dir_override(prompt_dir: Path) -> Iterator[None]:
+    """Read prompts from ``prompt_dir`` inside the block (prompt trial only)."""
+    token = _prompt_dir_override.set(Path(prompt_dir))
+    try:
+        yield
+    finally:
+        _prompt_dir_override.reset(token)
+
+
 def load_prompt(prompt_name: str) -> str:
     """Loads prompt template from the packaged prompts directory."""
+    override = _prompt_dir_override.get()
+    if override is not None:
+        path = override / prompt_name
+        return path.read_text(encoding="utf-8")
     ref = importlib.resources.files("mexipes.prompts") / prompt_name
     return ref.read_text(encoding="utf-8")
 

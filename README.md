@@ -98,9 +98,19 @@ stateDiagram-v2
 ## Requirements
 
 - Python 3.12 or newer
-- An LLM provider API key. Defaults expect `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/). Other LiteLLM providers need their own keys (see LiteLLM docs)
+- An LLM provider API key for real PDF runs. Defaults expect `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/). Other LiteLLM providers need their own keys (see LiteLLM docs)
+- `make test` needs no API key (unit tests only)
 
 Install is local and editable (`pip install -e ".[dev]"`). There is no published PyPI package yet.
+
+### Model and provider caveats
+
+- **Tested with Gemini.** Day-to-day development and QA use Google Gemini through LiteLLM (`gemini/…` model IDs). Other providers are wired the same way but are not regularly validated here.
+- **Vision required for some stages.** `extract` and `describe` send PDF page bytes or images. Those stages need a vision-capable model. Text-only models will fail or produce empty/wrong crops and descriptions.
+- **Structured JSON assumed.** Responses go through [instructor](https://python.useinstructor.com/) into Pydantic schemas. Providers that struggle with strict JSON schemas will surface as retries or stage failures.
+- **Defaults mix Flash and Pro.** Most stages default to `gemini-2.5-flash`. Rewrite, review, and consolidate default to `gemini-2.5-pro`. Override with `MEXIPES_*_MODEL` (see Setup).
+- **Free-tier limits.** Google AI Studio’s free tier can run Flash without a paid plan, but daily request caps are low and Pro may be unavailable. Check [your project’s rate limits](https://aistudio.google.com/rate-limit). A full `mexipes workflow` pass (many persona calls per recipe, plus possible fix loops) can exhaust free quota quickly; start with one small PDF, `--publication N`, and `--max-loops 1`.
+- **Gemini-only request options.** The LLM wrapper disables Gemini “thinking” and sets `drop_params=True` so non-Gemini providers ignore unknown kwargs. Behavior still depends on the provider.
 
 ## Setup
 
@@ -306,9 +316,7 @@ No. `mexipes review` writes only under `data/reviews/` and never mutates `data/p
 
 ### Can I use a model other than Gemini?
 
-Yes. Calls go through LiteLLM. Override per stage with `MEXIPES_*_MODEL` using LiteLLM model IDs. The LLM wrapper passes `drop_params=True` so Gemini-only options like `thinking` are ignored by other providers.
-
-Caveats: extract and describe send PDFs or images, so those stages need a vision-capable model. Other providers need their own API keys. Structured JSON via instructor is assumed; day-to-day testing has focused on Gemini.
+Yes, in principle. Calls go through LiteLLM; set `MEXIPES_*_MODEL` to that provider’s LiteLLM model ID and supply its API key. Keep a vision model on `extract` and `describe`. See [Model and provider caveats](#model-and-provider-caveats): this repo is validated on Gemini, not as a multi-provider matrix.
 
 ### Are rewritten recipes safe to publish?
 

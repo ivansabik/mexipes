@@ -33,27 +33,20 @@ LLM calls go through LiteLLM and instructor. Defaults use Gemini (`gemini/gemini
 
 ## Architecture
 
-`mexipes workflow` is a LangGraph state machine on top of the existing stage runners and review consolidator. Linear stage advancement still lives in the orchestrator; the graph owns the review → fix cycle.
+A **publication** is one cookbook PDF registered under `data/publications/<id>/`. A **recipe** is one dish extracted from that PDF, stored as JSON files under `recipes/<recipe_id>/`.
 
-```mermaid
-stateDiagram-v2
-  [*] --> process
-  process --> review
-  review --> evaluate
-  evaluate --> fix: new stage reruns and under max loops
-  fix --> review
-  evaluate --> prompt_trial: no stage reruns and a prompt candidate
-  prompt_trial --> [*]
-  evaluate --> [*]: clean, cap hit, or nothing to trial
-```
+Each recipe moves through named **stages**. A stage is a Python function that reads the prior JSON (and sometimes the PDF), calls an LLM when needed, writes a new JSON file, and updates `status.json`. Stages in order:
 
-- **process**: ingest staging if needed, extract, run stages until every recipe is `ready` or `failed`. Same work as `mexipes all`, or one publication when `--publication` is set.
-- **review**: existing review personas and consolidator, `no_process=True`, only the publications just processed. First pass reviews every recipe; later passes review only recipes just rerun. Writes `data/reviews/` only.
-- **evaluate**: no model. Keeps earliest `recommended_reruns` stage in `rewrite`…`substitute`. Drops `extract`, unknown stages, and keys already applied this run. Stops the data loop when nothing new remains or `fixes_applied` hits `--max-loops` (default 3). If a prompt candidate remains, the next node is the trial.
-- **fix**: copy the recipe directory to `data/backups/<timestamp>/`, rerun that stage, then `run_pipeline_until_ready` so later stages catch up. Then review again. The review after the last allowed fix still runs and does not fix again.
-- **prompt_trial**: one candidate prompt, temp store, at most 3 cited recipes. Prints a diff only when those recipes lose the target findings and gain none. Does not write `src/mexipes/prompts/`. DQ suggestions are not trialed.
+| Stage | Writes | Role |
+|-------|--------|------|
+| `extract` | `extracted.json` | Pull Spanish recipes and crop food photos from the PDF |
+| `rewrite` | `rewritten.json` | Paraphrase Spanish text so it is not a verbatim copy |
+| `describe` | `images_described.json` | Describe plate photos and draft text-to-image prompts |
+| `tag` | `tags.json` | Classify the Spanish rewrite (course, protein, region, …) |
+| `localize` | `localized.json`, `localized_tags.json` | Translate recipe and tags into English |
+| `substitute` | `substitutions.json` | Suggest US/Canada pantry swaps for hard-to-source ingredients |
 
-Recipe status inside `process` and `fix`:
+`status.json` holds the recipe's place in that chain (`extracted`, `rewritten`, `images_described`, `tagged`, `localized`, `ready`, or `failed`). Tagging runs on Spanish before localization so English labels stay aligned with the Spanish taxonomy. The `describe` stage name and the `images_described` status/file name differ on purpose.
 
 ```mermaid
 stateDiagram-v2
@@ -70,7 +63,37 @@ stateDiagram-v2
   localized --> failed: error
 ```
 
-`describe` writes `images_described.json`. Tag runs on Spanish before localize. `mexipes run` still advances one stage at a time; `mexipes workflow` is the closed loop.
+### Quality review
+
+**Review** is a separate LLM pass over finished (or nearly finished) recipes. Four **personas** each check one concern: extraction fidelity to the PDF, rewrite fidelity, taxonomy, and English localization / substitutions. Each persona returns **findings** (issue, evidence, suggested action).
+
+A **consolidator** LLM then merges those findings across recipes into one plan: which stages to rerun, which prompts might need editing, which DQ rules might need code changes, and what still needs a human. Review artifacts land under `data/reviews/` and do not change recipe JSON by themselves. That is what `mexipes review` does.
+
+**Data quality (DQ)** checks are deterministic rules (`mexipes dq`): missing fields, invalid enum values, broken cross-stage links. They feed into review as context; they do not rewrite data.
+
+### Closed workflow (`mexipes workflow`)
+
+Manual work often looked like: run stages → review → pick a stage to rerun → cascade later stages → review again. `mexipes workflow` automates that loop with [LangGraph](https://langchain-ai.github.io/langgraph/), a library for stateful graphs (nodes + conditional edges). It does not replace the stage functions; it calls them in order, then decides whether to fix and review again.
+
+```mermaid
+stateDiagram-v2
+  [*] --> process
+  process --> review
+  review --> evaluate
+  evaluate --> fix: new stage reruns and under max loops
+  fix --> review
+  evaluate --> prompt_trial: no stage reruns and a prompt candidate
+  prompt_trial --> [*]
+  evaluate --> [*]: clean, cap hit, or nothing to trial
+```
+
+- **process**: Register any PDFs in `data/staging/`, extract recipes, and run every stage until each recipe is `ready` or `failed`. With `--publication N`, only that book. Without it, every registered publication (same coverage as `mexipes all`).
+- **review**: Run the four personas and the consolidator on the publications just processed. First pass covers every recipe in those books; later passes cover only recipes that were just fixed. Still writes only under `data/reviews/`.
+- **evaluate**: No LLM. From the consolidator's stage-rerun list, keep the earliest stage per recipe among `rewrite`, `describe`, `tag`, `localize`, and `substitute`. Skip `extract` (that re-extracts the whole book) and skip any `(publication, recipe, stage)` already tried this run. If anything remains and fix count is under `--max-loops` (default 3), go to **fix**. Else if the consolidator still wants a prompt change, go to **prompt_trial**. Otherwise stop (`clean`, `no_new_reruns`, or `max_loops`).
+- **fix**: Copy each affected recipe directory to `data/backups/<timestamp>/`, rerun the chosen stage, then advance that publication's remaining stages until `ready` again. Review runs once more after the last allowed fix; that last review does not trigger another fix round.
+- **prompt_trial**: Rewrite one pipeline prompt into a temporary directory (packaged prompts under `src/mexipes/prompts/` stay untouched). Rerun the matching stage on a temporary copy of at most three recipes cited by the findings. Re-run the relevant personas. Print a unified diff only if every target finding is gone and no new finding appears. Failures print one line; consolidator prose about DQ/code changes is never treated as ready to apply.
+
+`mexipes run` still advances at most `--batch` recipes by a single stage. Use it for surgical retries. Prefer `mexipes workflow --publication N` when you want the full closed loop.
 
 ## Requirements
 
@@ -112,7 +135,7 @@ The repo does not bundle cookbook PDFs. Copy your own files into `data/staging/`
 extract → rewrite → describe → tag → localize → substitute → ready
 ```
 
-Tagging runs on rewritten Spanish text before localization, so localize can translate both the recipe body and its tag set into English. The `describe` stage writes `images_described.json` and sets status `images_described`. See [Architecture](#architecture) for the recipe status diagram and the workflow loop.
+See [Architecture](#architecture) for what each stage writes, how `status.json` advances, and how `mexipes workflow` wraps stages with review and capped fixes.
 
 ## Usage
 

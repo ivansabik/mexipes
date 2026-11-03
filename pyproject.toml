@@ -1,9 +1,25 @@
 [project]
 name = "mexipes"
 version = "0.1.0"
-description = "Automated Mexican Recipe Content Pipeline"
+description = "AI-assisted pipeline that turns Spanish cookbook PDFs into structured English recipes for computational gastronomy, search, and recipe suggestion"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
+keywords = [
+    "recipes",
+    "mexican-cuisine",
+    "pdf",
+    "llm",
+    "litellm",
+    "computational-gastronomy",
+    "localization",
+    "cli",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "instructor>=1.3.0",
     "litellm>=1.35.0",
@@ -22,6 +38,10 @@ dev = [
     "ruff>=0.4.0",
     "pre-commit>=3.7.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ivansabik/mexipes"
+Repository = "https://github.com/ivansabik/mexipes"
 
 [project.scripts]
 mexipes = "mexipes.cli:app"

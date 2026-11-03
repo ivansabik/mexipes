@@ -42,3 +42,6 @@ data/sample_pdfs/
 
 # Review artifacts (regenerate with mexipes review)
 data/reviews/
+
+# Workflow stage backups (mexipes workflow)
+data/backups/

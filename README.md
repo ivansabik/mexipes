@@ -29,6 +29,48 @@ LLM calls go through LiteLLM and instructor. Defaults use Gemini (`gemini/gemini
 - Localizes recipes and tag sets into English (slugs and short cultural intros)
 - Suggests ingredient substitutions for US and Canada pantries
 - Runs advisory AI review personas on sampled recipes without changing pipeline data
+- Closes the loop with `mexipes workflow`: process to ready, review, auto-rerun stages (capped), and trial prompt changes on a copy before suggesting a commit
+
+## Architecture
+
+`mexipes workflow` is a LangGraph state machine on top of the existing stage runners and review consolidator. Linear stage advancement still lives in the orchestrator; the graph owns the review → fix cycle.
+
+```mermaid
+stateDiagram-v2
+  [*] --> process
+  process --> review
+  review --> evaluate
+  evaluate --> fix: new stage reruns and under max loops
+  fix --> review
+  evaluate --> prompt_trial: no stage reruns and a prompt candidate
+  prompt_trial --> [*]
+  evaluate --> [*]: clean, cap hit, or nothing to trial
+```
+
+- **process**: ingest staging if needed, extract, run stages until every recipe is `ready` or `failed`. Same work as `mexipes all`, or one publication when `--publication` is set.
+- **review**: existing review personas and consolidator, `no_process=True`, only the publications just processed. First pass reviews every recipe; later passes review only recipes just rerun. Writes `data/reviews/` only.
+- **evaluate**: no model. Keeps earliest `recommended_reruns` stage in `rewrite`…`substitute`. Drops `extract`, unknown stages, and keys already applied this run. Stops the data loop when nothing new remains or `fixes_applied` hits `--max-loops` (default 3). If a prompt candidate remains, the next node is the trial.
+- **fix**: copy the recipe directory to `data/backups/<timestamp>/`, rerun that stage, then `run_pipeline_until_ready` so later stages catch up. Then review again. The review after the last allowed fix still runs and does not fix again.
+- **prompt_trial**: one candidate prompt, temp store, at most 3 cited recipes. Prints a diff only when those recipes lose the target findings and gain none. Does not write `src/mexipes/prompts/`. DQ suggestions are not trialed.
+
+Recipe status inside `process` and `fix`:
+
+```mermaid
+stateDiagram-v2
+  [*] --> extracted: extract
+  extracted --> rewritten: rewrite
+  rewritten --> images_described: describe
+  images_described --> tagged: tag
+  tagged --> localized: localize
+  localized --> ready: substitute
+  extracted --> failed: error
+  rewritten --> failed: error
+  images_described --> failed: error
+  tagged --> failed: error
+  localized --> failed: error
+```
+
+`describe` writes `images_described.json`. Tag runs on Spanish before localize. `mexipes run` still advances one stage at a time; `mexipes workflow` is the closed loop.
 
 ## Requirements
 
@@ -70,9 +112,7 @@ The repo does not bundle cookbook PDFs. Copy your own files into `data/staging/`
 extract → rewrite → describe → tag → localize → substitute → ready
 ```
 
-Tagging runs on rewritten Spanish text before localization, so localize can translate both the recipe body and its tag set into English.
-
-The `describe` stage writes `images_described.json` and sets status `images_described`.
+Tagging runs on rewritten Spanish text before localization, so localize can translate both the recipe body and its tag set into English. The `describe` stage writes `images_described.json` and sets status `images_described`. See [Architecture](#architecture) for the recipe status diagram and the workflow loop.
 
 ## Usage
 
@@ -84,7 +124,17 @@ mexipes ingest data/staging/
 
 Validates PDFs, deduplicates by MD5, moves invalid files to `data/rejected/`, and registers publications under `data/publications/<publication_id>/`.
 
-### 2. Run the pipeline
+### 2. Run the closed workflow (recommended)
+
+```bash
+mexipes workflow --publication 1 --max-loops 3
+```
+
+Processes to ready, reviews, auto-reruns consolidator stage recommendations (with backups under `data/backups/`), and may trial one prompt change on a copy. Prefer `--publication` so review cost stays bounded. Without it, every registered publication is processed and reviewed.
+
+For surgical one-stage advancement, use `mexipes run` / `mexipes all` as below.
+
+### 3. Run the pipeline one stage at a time
 
 ```bash
 mexipes run --batch 10
@@ -115,14 +165,14 @@ mexipes run --recipe 1:1 --stage tag
 
 Valid stage names: `extract`, `rewrite`, `describe`, `tag`, `localize`, `substitute`.
 
-### 3. Check status
+### 4. Check status
 
 ```bash
 mexipes status
 mexipes status --publication 1
 ```
 
-### 4. Data quality checks
+### 5. Data quality checks
 
 ```bash
 mexipes dq
@@ -131,9 +181,9 @@ mexipes dq --publication 1 --verbose
 
 Exits with code 1 when any errors are found. Warnings alone still pass.
 
-### 5. On-demand quality review
+### 6. On-demand quality review
 
-`mexipes review` samples pipeline outputs, attaches the relevant source PDF pages, and asks reviewer personas to produce findings with evidence. The command is advisory: it writes only under `data/reviews/` and leaves `data/publications/` alone. Processed publications are read through a read-only store.
+`mexipes review` samples pipeline outputs, attaches the relevant source PDF pages, and asks reviewer personas to produce findings with evidence. The command is advisory: it writes only under `data/reviews/` and leaves `data/publications/` alone. Processed publications are read through a read-only store. For automatic stage reruns after review, use `mexipes workflow` instead.
 
 Page fields (`page_start` / `page_end`, and publication `recipe_index` pages) are 1-based PDF document indices, not printed book page numbers. A recipe on PDF page 13 that shows "15" in the footer is correct.
 
@@ -148,18 +198,18 @@ Defaults keep the sample small (`--publications/-P 3`, `--recipes-per-pub/-n 3`)
 
 Typical workflow:
 
-1. Generate or update data with `mexipes run` or `mexipes all`.
-2. Run `mexipes dq`.
-3. Run `mexipes review`.
-4. Triage findings in `consolidated.json`. Each finding starts with `triage_notes` set to `PLACEHOLDER`. Fill that field to discard false positives, add context, or propose a change.
-   - one-off data issue: targeted rerun, e.g. `mexipes run --recipe 1:2 --stage tag`
-   - systemic issue: prompt, DQ rule, or code change
+1. Prefer `mexipes workflow --publication N` when you want process + review + capped stage reruns in one pass.
+2. Or generate data with `mexipes run` / `mexipes all`, then `mexipes dq`, then `mexipes review` for a sampled advisory pass.
+3. Triage findings in `consolidated.json`. Each finding starts with `triage_notes` set to `PLACEHOLDER`.
+   - one-off data issue: targeted rerun, e.g. `mexipes run --recipe 1:2 --stage tag`, or let `mexipes workflow` apply consolidator reruns
+   - systemic prompt issue: only commit a prompt diff that `mexipes workflow` printed after a passed prompt trial
+   - DQ / code issue: still human-edited; the workflow does not trial generated Python
    - weak or subjective issue: ignore, or leave as consolidator `human_review`
-5. Re-run affected stages, then `dq`, then `review` on a fresh seeded sample.
+4. After a prompt commit, re-run `mexipes workflow` or `dq` + `review` on a fresh sample.
 
 Review and consolidate models use `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`.
 
-### 6. Export
+### 7. Export
 
 ```bash
 mexipes export --output recipes.json --status ready
@@ -170,7 +220,7 @@ Writes:
 - `recipes.json`: consolidated recipe objects (original, rewritten, localized, tags, substitutions)
 - `recipes_facets.json`: inverted facet index (slug → `publication_id:recipe_id`) for browse and filter UIs
 
-### 7. Similarity index (optional)
+### 8. Similarity index (optional)
 
 ```bash
 mexipes recommend --export recipes.json --output recipes_similar.json
@@ -186,6 +236,7 @@ data/
 ├── rejected/             # invalid or duplicate PDFs
 ├── sample_pdfs/          # optional holding area for smoke-test PDFs
 ├── reviews/              # gitignored mexipes review artifacts
+├── backups/              # gitignored recipe copies before workflow stage reruns
 └── publications/
     └── <id>/
         ├── source.pdf
@@ -228,7 +279,7 @@ No. Stored page fields are positions in the PDF file (1-based). Printed footer o
 
 ### Does `mexipes review` change pipeline data?
 
-No. Review writes only under `data/reviews/`. Findings are for human triage and are never auto-applied to `data/publications/`.
+No. `mexipes review` writes only under `data/reviews/` and never mutates `data/publications/`. `mexipes workflow` can rewrite stage JSON after copying the recipe directory to `data/backups/`, but only for consolidator `recommended_reruns` in `rewrite`…`substitute`. Prompt files are never written by either command; a prompt trial may print a validated diff for you to commit.
 
 ### Can I use a model other than Gemini?
 

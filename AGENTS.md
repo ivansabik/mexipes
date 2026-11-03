@@ -6,8 +6,9 @@ Convert Spanish recipe publication PDFs into structured, localized English conte
 
 ```
 src/mexipes/
-  cli.py                # Typer CLI: mexipes ingest|run|status|dq|review|export|recommend
+  cli.py                # Typer CLI: mexipes ingest|run|all|workflow|status|dq|review|export|recommend
   config.py             # Per-stage model config via MEXIPES_* env vars + .env
+  graph.py              # LangGraph workflow: process → review → evaluate → fix / prompt_trial
   pipeline/
     orchestrator.py     # Stage sequencing, batch runs, export
     pdf_processor.py    # PDF page extraction helpers
@@ -39,6 +40,7 @@ src/mexipes/
   review/               # On-demand AI review schemas, registry, runner
 data/publications/<pub>/recipes/<id>/   # Stage JSON outputs + status.json
 data/reviews/           # Gitignored mexipes review artifacts
+data/backups/           # Gitignored recipe copies before workflow stage reruns
 tests/                  # unit tests (no API key needed)
 ```
 
@@ -98,6 +100,7 @@ After code changes, run `make format && make lint && make check` before committi
 
 ```bash
 mexipes ingest data/staging/                  # register new PDFs
+mexipes workflow --publication 1 --max-loops 3  # process → review → capped stage reruns → optional prompt trial
 mexipes run --publication 1 --batch 10        # advance up to 10 recipes one stage
 mexipes run --recipe 1:1 --stage tag          # run specific stage for one recipe
 mexipes status --publication 1                # check progress
@@ -123,6 +126,7 @@ mexipes recommend --export recipes.json       # build similarity index
 | Change inherited tag logic | `inherited_tags.py`, `stages/tag.py` |
 | Change similarity/recommendations | `recommend/similarity.py` |
 | Change on-demand review | `review/`, `prompts/review_*.md`, `cli.py`, `config.py` |
+| Change closed workflow | `graph.py`, `cli.py`, `llm.py` (`prompt_dir_override`) |
 
 ## Workflow: Debugging stuck/failed recipes
 
@@ -142,11 +146,19 @@ mexipes recommend --export recipes.json       # build similarity index
 5. Re-localize and re-substitute if recipes were already past those stages.
 6. Re-export if needed: `mexipes export --output recipes.json`
 
+## Workflow: Closed loop (`mexipes workflow`)
+
+1. Prefer a bounded run: `mexipes workflow --publication N --max-loops 3`.
+2. The graph processes to ready, reviews, and auto-applies consolidator `recommended_reruns` for `rewrite`…`substitute` only (never `extract`), after copying the recipe dir to `data/backups/`.
+3. Cap is `--max-loops` fix iterations. Already-applied `(pub, recipe, stage)` keys are not repeated.
+4. After the data loop, one optional prompt trial may run on a temp copy (at most 3 cited recipes). A unified diff is printed only if target findings clear and no new findings appear. Prompt files under `src/mexipes/prompts/` are never written by the workflow.
+5. DQ / code suggestions stay untested prose in `consolidated.json`. Do not treat them as ready to apply.
+
 ## Workflow: On-demand AI review
 
-1. Generate or refresh data with `mexipes run`, `mexipes all`, or targeted stage reruns.
+1. Generate or refresh data with `mexipes workflow`, `mexipes run`, `mexipes all`, or targeted stage reruns.
 2. Run deterministic checks first: `mexipes dq --publication N --verbose` (or all publications).
-3. Run AI review on a bounded sample:
+3. Run AI review on a bounded sample (advisory only — never writes `data/publications/`):
    - `mexipes review --seed 42` — default 3 random publications x 3 random recipes
    - `mexipes review --publications 5 --recipes-per-pub 4 --seed 42`
    - `mexipes review --publication 1 --recipes 1-25 --no-process`
@@ -155,12 +167,13 @@ mexipes recommend --export recipes.json       # build similarity index
 5. Human (or a follow-up agent) triages findings by editing each finding's `triage_notes` (starts as `PLACEHOLDER`):
    - discard / false positive → note why and ignore
    - enrich → add context, proposed fix, or narrower scope
-   - one-off data issue → rerun a stage, e.g. `mexipes run --recipe 1:2 --stage tag`
-   - systemic issue → edit prompt, DQ rule, or code
+   - one-off data issue → `mexipes workflow` or `mexipes run --recipe 1:2 --stage tag`
+   - systemic prompt issue → commit only a prompt diff that passed the workflow prompt trial
+   - DQ / code issue → human edit; workflow does not trial generated Python
    - weak/subjective issue → ignore or leave as consolidator `human_review`
 6. Re-run affected stages, then `mexipes dq`, then `mexipes review` again on a fresh seeded sample.
 
-Review artifacts are gitignored and isolated from pipeline outputs. Review models are configured via `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`. Do not build auto-apply behavior without first adding stage-output versioning/backups and downstream invalidation.
+Review artifacts are gitignored and isolated from pipeline outputs. Review models are configured via `MEXIPES_REVIEW_*` and `MEXIPES_CONSOLIDATE_*`. `mexipes review` remains advisory. Stage auto-reruns happen only in `mexipes workflow`, after recipe-dir backups and with downstream cascade via `run_pipeline_until_ready`.
 
 ## Further reading
 
